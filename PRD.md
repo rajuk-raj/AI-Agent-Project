@@ -1,7 +1,25 @@
-# Resume Bullet Optimizer Agent — PRD v1
+# Resume Bullet Optimizer Agent — PRD v1.1
 
-**Owner:** Raju · **Date:** July 2026 · **Status:** Draft for build
+**Owner:** Raju · **Date:** July 2026 · **Status:** Steps 1–8 built and running; UI in place
 **Supersedes:** `Resume_Bullet_Optimizer_Agent_Plan.docx` (architecture doc — carried forward where noted)
+**Repo:** https://github.com/rajuk-raj/AI-Agent-Project
+
+## Changelog — v1.0 → v1.1
+
+Revisions forced by building the thing. Each is a claim in v1.0 that contact with a real resume disproved.
+
+| # | Change | Why |
+|---|---|---|
+| 1 | Provider is **OpenAI (`gpt-4o-mini`)**, not Claude | §10.2 rewritten. Measured, not assumed — see below. |
+| 2 | Added reason code **`DUPLICATES_EXISTING`** | The rewriter lifted metrics from *neighbouring bullets*. Passed the fabrication check (the claim was genuinely in the source) while making the candidate claim one win twice. 3 of 4 rewrites were contaminated before this was caught. |
+| 3 | Rewrite queue is **everything not `strong`**, not just `weak` | Gating on `weak` silently dropped duty statements the model happened to label `none` — the exact bullets the product exists to fix. Six of ten were being skipped. |
+| 4 | Added **`potentialCompetency`** (schema-enforced) | Bullets tagged `NONE` gave the rewriter no target. |
+| 5 | Run time target **revised: 2–4 min**, not <90s | Measured: 23 model calls for a 10-bullet resume. |
+| 6 | Experience doc reclassified **optional → strongly recommended** | Without one, most weak bullets have no supporting data and route to clarification. Fewer rewrites is the honest outcome, but the input screen must say so. |
+| 7 | Reasoning models rejected for this pipeline | Measured: 88% of output tokens spent on reasoning, 4.5× slower, identical coverage. |
+| 8 | Golden set moved **before** the rewriter in priority | Two models disagreed outright on the same bullets. Neither can be ground truth. |
+
+**Still open:** gap-aware targeting doesn't work yet. Coverage correctly flags Prioritization and Cross-functional influence as missing, but the mapper assigns `potentialCompetency` per bullet with no view of those gaps, so it keeps aiming at Domain instead. The bullets that could close the gaps exist; the targeting doesn't reach them.
 
 ---
 
@@ -52,12 +70,14 @@ First-pass acceptance is a self-diagnostic, not a goal to maximize. ~95% means t
 
 **Product**
 
-| Metric | Target |
-|---|---|
-| End-to-end run time | <90s for a 2-page resume |
-| Runs completing without error | ≥95% |
-| Optimized bullets kept by user (kept ÷ optimized) | ≥60% |
-| Clarification-pass completion rate | ≥40% |
+| Metric | Target | Status |
+|---|---|---|
+| End-to-end run time | **2–4 min** for a 1-page resume | Measured: ~2 min / 23 calls for 10 bullets |
+| Runs completing without error | ≥95% | Not yet measured |
+| Optimized bullets kept by user (kept ÷ optimized) | ≥60% | Needs real users |
+| Clarification-pass completion rate | ≥40% | Needs real users |
+
+*Revised in v1.1.* The original <90s target was written before any calls were made. The pipeline is one call per step plus two per rewrite attempt; a 10-bullet resume is 23 calls. Sub-90s is not reachable without parallelising bullets, which the free-tier rate limits do not allow. The progress log is the mitigation — a 2-minute wait is acceptable when the user can watch the agent working, and unacceptable behind a spinner.
 
 **Portfolio bar (qualitative):** every number rendered in the UI has a derivation Raju can explain in one sentence. If it can't be explained, it gets cut.
 
@@ -80,13 +100,15 @@ Module A (mock interviews), session persistence, multi-role support.
 
 | Input | Methods | Required |
 |---|---|---|
-| Resume | Upload PDF/DOCX, or paste | **Yes** |
-| Experience doc | Upload PDF/DOCX, or paste | No |
+| Resume | Upload PDF/DOCX/TXT, or paste | **Yes** |
+| Experience doc | Upload PDF/DOCX/TXT, or paste | Optional — **strongly recommended** |
 | Target seniority | Dropdown (APM / PM / Senior PM / Group PM / Director) | No, defaults to PM |
 
 *(v2 adds: JD upload/paste/URL, company name, role name.)*
 
-The experience doc is a free-form brain dump — projects, metrics, things not yet on the resume. It's the raw material that makes rewrites specific rather than reworded. It is optional because most users don't have one prepared; §6.3 recovers the missing information instead.
+The experience doc is a free-form brain dump — projects, metrics, things not yet on the resume. It's the raw material that makes rewrites specific rather than reworded.
+
+**Reclassified in v1.1.** v1.0 called this "optional" and treated §6.3 as the fallback. Testing showed the fallback *is* the common path without it: on a resume with no supporting detail, most weak bullets have no data to draw on, so the agent honestly parks them as questions rather than improving them. On the sample resume that meant 2 improved and 3 parked. That is correct behavior, but "we couldn't help with most of your resume" is a poor first impression, so the input screen now warns explicitly when the field is left empty.
 
 ### 6.2 Agent run (autonomous)
 
@@ -164,7 +186,10 @@ The self-scorer emits a reason code alongside the number. This is what makes ret
 | `NO_STAR_STRUCTURE` | Missing action, context, or result | Retry |
 | `TOO_LONG` / `FORMAT_FAIL` | >150 chars, multi-line, unsafe chars | Retry |
 | `NO_QUANTIFIABLE_DATA` | Source documents contain no metric for this claim | **Skip retries → clarification pass** |
+| `DUPLICATES_EXISTING` | The rewrite claims an achievement belonging to a different bullet | Retry (then flag if exhausted) |
 | `WOULD_REQUIRE_FABRICATION` | Improving would mean inventing a claim | **Never retry → flag for human review** |
+
+**On `DUPLICATES_EXISTING` (added in v1.1, after it happened).** Given the whole resume as context, the rewriter treats it as one undifferentiated pool of facts and attaches the nearest strong metric to whichever bullet it is working on. This is *not* caught by the fabrication check — the claim genuinely is in the source — and it scores *well*, because it borrowed a quantified result. It is therefore checked **before** the threshold, not after: correctness gates quality. Both the rewriter and the scorer now receive the other bullets explicitly.
 
 **Rationale:** the original plan's 3× retry loop assumes every weak bullet is a *writing* problem. Many are *data* problems — no amount of rewriting invents a metric that isn't in the source. Burning three LLM calls to rediscover that wastes money and, worse, pressures the model toward fabrication. Reason codes route each failure to the mechanism that can actually fix it.
 
@@ -257,43 +282,52 @@ React (Vite + Tailwind)          Vercel serverless
 
 Single LLM service layer; provider and model set by env var so the abstraction stays swappable (a stated goal of the original plan).
 
-**Default: `claude-opus-4-8`** for all tools.
+**Provider: OpenAI. Default `gpt-4o-mini` for all tools.**
 
-Per-tool model assignment is a config value, so cost/quality can be tuned per step without code changes. Current pricing per million tokens, for planning:
+Per-tool model assignment is an env var (`LLM_MODEL_DECOMPOSE`, `LLM_MODEL_REWRITE`, …), so cost and quality can be tuned per step without code changes. That abstraction was exercised twice during the build — Claude → Gemini → OpenAI — and each switch touched one file, `api/_llm.js`.
 
-| Model | Input | Output |
+**Reasoning models were tested and rejected.** Measured on the same 15-bullet resume:
+
+| | gpt-5-nano (reasoning) | gpt-4o-mini |
 |---|---|---|
-| `claude-opus-4-8` | $5.00 | $25.00 |
-| `claude-sonnet-5` | $3.00 ($2.00 intro thru 2026-08-31) | $15.00 ($10.00 intro) |
-| `claude-haiku-4-5` | $1.00 | $5.00 |
+| Wall time, 2 calls | 67.8s | **15.0s** |
+| Output tokens | 11,213 | **1,266** |
+| Reasoning overhead | 88% | 0% |
+| Coverage result | 4/7 | 4/7 |
 
-The scorer is the highest-volume call (once per rewrite, plus retries) and the most mechanical, so it's the natural first candidate if per-run cost needs to come down — but that's a decision to make against measured cost and measured scorer agreement, not upfront. Changing the scorer model invalidates the golden-set calibration; re-run §8 after any such change.
+Identical output quality, 4.5× slower, ~9× the output tokens — and reasoning bills at the output rate. Decompose is the clearest case: it burned 3,584 reasoning tokens transcribing text it was explicitly told not to alter. Extraction needs no deliberation.
 
-**Request configuration:**
-- `thinking: {type: "adaptive"}` — set explicitly; omitting it on Opus 4.8 means no thinking. Rewriter and competency mapper benefit most.
-- `output_config: {effort: ...}` — `high` for rewriter/mapper, `low` for scorer and question generation.
-- `output_config: {format: {type: "json_schema", schema: ...}}` on every structured tool.
-- **Prompt caching** on the source-document context. The resume + experience doc are re-sent on every rewrite and score call — with 14 bullets and retries that's 30+ requests sharing the same prefix. Put `cache_control: {type: "ephemeral"}` on the last source-context block. Note Opus 4.8's minimum cacheable prefix is 4096 tokens; short resumes won't cache, which is fine.
-- `max_tokens`: 4000 for rewrite/score (short outputs), 16000 for decompose.
+**Structured outputs are load-bearing, not a convenience.** Every tool uses strict `json_schema`. Three constraints were ignored when expressed as prompt instructions and held immediately when moved into a schema enum or into code:
+
+| Constraint | As a prompt instruction | As a schema/code constraint |
+|---|---|---|
+| Rewrite target must not be `NONE` | Ignored on 9 of 10 bullets | Enum excludes `NONE` — impossible |
+| One clarifying question per bullet | Fired 3 at one bullet | Deduped in `api/questions.js` |
+| Don't ask leading questions | *"By what percentage did satisfaction improve?"* | `questionType` enum steers the form |
+
+**Prompts express preferences; schemas express guarantees.** Anything the product depends on belongs in the second category.
+
+**Measured cost basis:** a 10-bullet resume with no experience doc costs **23 model calls / ~25K tokens**. Retries and the per-bullet source context dominate. Input tokens are the larger share, since resume + all sibling bullets are re-sent on every rewrite and score call.
 
 ## 11. Build phases
 
-| # | Deliverable | Days |
+| # | Deliverable | Status |
 |---|---|---|
-| 1 | UI scaffold — input, progress log, output shells | 1–2 |
-| 2 | Client-side file parsing + text normalization | 2–3 |
-| 3 | LLM service layer + first serverless endpoint (decompose) | 3–4 |
-| 4 | Client orchestrator — step loop, state machine, progress log | 4–5 |
-| 5 | Competency model + mapper tool | 5–6 |
-| 6 | STAR rewriter | 6–7 |
-| 7 | Self-scorer + reason codes + retry/routing logic | 7–9 |
-| 8 | **Golden set + eval harness** | 9–10 |
-| 9 | Threshold calibration against golden set | 10 |
-| 10 | Clarification pass (questions + targeted re-run) | 10–11 |
-| 11 | Output UI — comparison cards, coverage viz, per-bullet actions | 11–13 |
-| 12 | Regenerate-with-prompt | 13 |
-| 13 | Fabrication audit + fixes | 14 |
-| 14 | Deploy, end-to-end test, polish | 14–15 |
+| 1 | LLM service layer (`api/_llm.js`) | **Done** |
+| 2 | Competency model + deterministic scoring, unit-tested | **Done** — 36 tests |
+| 3 | Decompose + competency mapper | **Done** |
+| 4 | STAR rewriter | **Done** |
+| 5 | Self-scorer + reason codes + retry/routing | **Done** |
+| 6 | Duplication guard (`DUPLICATES_EXISTING`) | **Done** — added after live testing |
+| 7 | Clarification pass (questions + answer folding) | **Done** |
+| 8 | Golden set + eval harness | **Built — awaiting 30 hand labels** |
+| 9 | UI: input, live progress log, output screen | **Done** |
+| 10 | Client-side file parsing (PDF / DOCX / TXT) | **Done** — untested against a real PDF |
+| 11 | Threshold calibration against golden set | Blocked on #8 |
+| 12 | Gap-aware rewrite targeting | Open — see changelog |
+| 13 | Regenerate-with-prompt (per-bullet) | Not started |
+| 14 | Fabrication audit (50 bullets) | Not started |
+| 15 | Vercel deploy | Not started |
 
 **~15 days** (10–12 compressed with Claude Code). Phase 8 is deliberately placed before the output UI — calibrating the threshold before building the UI that displays scores avoids rebuilding the display around a number that turns out to be wrong.
 
