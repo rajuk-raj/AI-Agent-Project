@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.vercel/
+
+# Secrets — never commit
+.env
+.env.local
+.env.*.local
+
+# Eval outputs may contain real resume text
+eval/runs/
+
+.DS_Store
+*.log

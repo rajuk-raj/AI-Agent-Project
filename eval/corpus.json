@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "notes": "Golden-set corpus. Spans all 7 competencies, both strengths, and the edge cases where gpt-4o-mini and gpt-5-nano actively disagreed during development. Items marked disputed:true are the ones that matter most - they are why this set exists.",
+  "bullets": [
+    { "id": "g01", "seniority": "PM", "text": "Ran 18 merchant interviews to identify why mid-market signups stalled, which redirected the Q3 roadmap", "source": "live-run" },
+    { "id": "g02", "seniority": "PM", "text": "Participated in user research sessions", "source": "live-run" },
+    { "id": "g03", "seniority": "SENIOR_PM", "text": "Synthesized 40 support tickets into three themes that became the H2 discovery agenda" },
+    { "id": "g04", "seniority": "PM", "text": "Conducted usability testing on the new checkout flow" },
+
+    { "id": "g05", "seniority": "SENIOR_PM", "text": "Cut the Q2 roadmap from 14 initiatives to 5 after modelling engineering capacity, shipping all 5 on time" },
+    { "id": "g06", "seniority": "PM", "text": "Responsible for the merchant onboarding product area and its roadmap", "source": "live-run", "disputed": true },
+    { "id": "g07", "seniority": "SENIOR_PM", "text": "Deprioritized the partner API rebuild to fund fraud tooling, based on a 3x difference in projected revenue impact" },
+    { "id": "g08", "seniority": "PM", "text": "Owned the quarterly planning process for two squads" },
+
+    { "id": "g09", "seniority": "PM", "text": "Cut merchant onboarding drop-off from 41% to 23% by removing two redundant KYC steps", "source": "live-run" },
+    { "id": "g10", "seniority": "SENIOR_PM", "text": "Defined the dispute resolution SLA metric and drove it from 9 days to 4 days", "source": "live-run" },
+    { "id": "g11", "seniority": "PM", "text": "Ran A/B tests on the pricing page" },
+    { "id": "g12", "seniority": "APM", "text": "Tracked weekly active usage in Amplitude and reported it to the team" },
+
+    { "id": "g13", "seniority": "SENIOR_PM", "text": "Aligned engineering, legal, and compliance on a shared KYC standard, unblocking a launch delayed two quarters" },
+    { "id": "g14", "seniority": "PM", "text": "Helped the engineering team with sprint planning and backlog grooming", "source": "live-run", "disputed": true },
+    { "id": "g15", "seniority": "PM", "text": "Worked on the payments retry logic with engineering", "source": "live-run" },
+    { "id": "g16", "seniority": "SENIOR_PM", "text": "Convinced the platform team to expose an internal API by quantifying 200 hours of duplicated work per quarter" },
+
+    { "id": "g17", "seniority": "PM", "text": "Launched a self-serve settlement dashboard used by 4,200 merchants in the first quarter", "source": "live-run" },
+    { "id": "g18", "seniority": "APM", "text": "Assisted with the CRM mobile app release", "source": "live-run" },
+    { "id": "g19", "seniority": "PM", "text": "Built an internal tool that let support agents resolve tickets without escalating to engineering", "source": "live-run", "disputed": true },
+    { "id": "g20", "seniority": "PM", "text": "Created a bot that summarizes competitor pricing pages weekly", "source": "live-run", "disputed": true },
+    { "id": "g21", "seniority": "SENIOR_PM", "text": "Shipped an automated evidence-collection flow that reduced manual dispute handling time by 60%", "source": "live-run" },
+
+    { "id": "g22", "seniority": "PM", "text": "Presented the quarterly disputes review to the leadership team", "source": "live-run", "disputed": true },
+    { "id": "g23", "seniority": "SENIOR_PM", "text": "Secured $400K in additional headcount budget by presenting a churn model to the exec team" },
+    { "id": "g24", "seniority": "PM", "text": "Wrote the monthly product newsletter for internal stakeholders" },
+    { "id": "g25", "seniority": "GROUP_PM", "text": "Briefed the board quarterly on platform strategy, which shaped the two-year investment plan" },
+
+    { "id": "g26", "seniority": "SENIOR_PM", "text": "Designed the idempotency model for the payments API, eliminating duplicate-charge incidents entirely" },
+    { "id": "g27", "seniority": "PM", "text": "Managed the disputes and chargeback experience", "source": "live-run" },
+    { "id": "g28", "seniority": "PM", "text": "Familiar with SQL, Amplitude, and Figma" },
+    { "id": "g29", "seniority": "SENIOR_PM", "text": "Led the migration from monolith to service architecture for the billing domain across three teams" },
+    { "id": "g30", "seniority": "PM", "text": "Improved the onboarding flow based on feedback from the sales team", "source": "live-run" }
+  ]
+}

@@ -1,0 +1,31 @@
+id,bullet,seniority,your_competency,your_strength,notes
+g01,"Ran 18 merchant interviews to identify why mid-market signups stalled, which redirected the Q3 roadmap",PM,,,
+g02,Participated in user research sessions,PM,,,
+g03,Synthesized 40 support tickets into three themes that became the H2 discovery agenda,SENIOR_PM,,,
+g04,Conducted usability testing on the new checkout flow,PM,,,
+g05,"Cut the Q2 roadmap from 14 initiatives to 5 after modelling engineering capacity, shipping all 5 on time",SENIOR_PM,,,
+g06,Responsible for the merchant onboarding product area and its roadmap,PM,,,models disagreed here
+g07,"Deprioritized the partner API rebuild to fund fraud tooling, based on a 3x difference in projected revenue impact",SENIOR_PM,,,
+g08,Owned the quarterly planning process for two squads,PM,,,
+g09,Cut merchant onboarding drop-off from 41% to 23% by removing two redundant KYC steps,PM,,,
+g10,Defined the dispute resolution SLA metric and drove it from 9 days to 4 days,SENIOR_PM,,,
+g11,Ran A/B tests on the pricing page,PM,,,
+g12,Tracked weekly active usage in Amplitude and reported it to the team,APM,,,
+g13,"Aligned engineering, legal, and compliance on a shared KYC standard, unblocking a launch delayed two quarters",SENIOR_PM,,,
+g14,Helped the engineering team with sprint planning and backlog grooming,PM,,,models disagreed here
+g15,Worked on the payments retry logic with engineering,PM,,,
+g16,Convinced the platform team to expose an internal API by quantifying 200 hours of duplicated work per quarter,SENIOR_PM,,,
+g17,"Launched a self-serve settlement dashboard used by 4,200 merchants in the first quarter",PM,,,
+g18,Assisted with the CRM mobile app release,APM,,,
+g19,Built an internal tool that let support agents resolve tickets without escalating to engineering,PM,,,models disagreed here
+g20,Created a bot that summarizes competitor pricing pages weekly,PM,,,models disagreed here
+g21,Shipped an automated evidence-collection flow that reduced manual dispute handling time by 60%,SENIOR_PM,,,
+g22,Presented the quarterly disputes review to the leadership team,PM,,,models disagreed here
+g23,Secured $400K in additional headcount budget by presenting a churn model to the exec team,SENIOR_PM,,,
+g24,Wrote the monthly product newsletter for internal stakeholders,PM,,,
+g25,"Briefed the board quarterly on platform strategy, which shaped the two-year investment plan",GROUP_PM,,,
+g26,"Designed the idempotency model for the payments API, eliminating duplicate-charge incidents entirely",SENIOR_PM,,,
+g27,Managed the disputes and chargeback experience,PM,,,
+g28,"Familiar with SQL, Amplitude, and Figma",PM,,,
+g29,Led the migration from monolith to service architecture for the billing domain across three teams,SENIOR_PM,,,
+g30,Improved the onboarding flow based on feedback from the sales team,PM,,,

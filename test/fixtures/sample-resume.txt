@@ -1,0 +1,36 @@
+PRIYA RAMANATHAN
+Bengaluru, India | priya.r@example.com | linkedin.com/in/example
+
+EXPERIENCE
+
+Senior Product Manager, Pine Labs — Bengaluru
+Mar 2023 - Present
+- Responsible for the merchant onboarding product area and its roadmap
+- Cut merchant onboarding drop-off from 41% to 23% by removing two redundant KYC steps
+- Improved the onboarding flow based on feedback from the sales team
+- Ran 18 merchant interviews to identify why mid-market signups stalled, which redirected the Q3 roadmap
+- Worked on the payments retry logic with engineering
+- Launched a self-serve settlement dashboard used by 4,200 merchants in the first quarter
+
+Product Manager, Razorpay — Bengaluru
+Jun 2021 - Feb 2023
+- Managed the disputes and chargeback experience
+- Shipped an automated evidence-collection flow that reduced manual dispute handling time by 60%
+- Helped the engineering team with sprint planning and backlog grooming
+- Defined the dispute resolution SLA metric and drove it from 9 days to 4 days
+- Presented the quarterly disputes review to the leadership team
+
+Associate Product Manager, Freshworks — Chennai
+Jul 2019 - May 2021
+- Assisted with the CRM mobile app release
+- Built an internal tool that let support agents resolve tickets without escalating to engineering
+- Participated in user research sessions
+
+PROJECTS
+- Created a bot that summarizes competitor pricing pages weekly
+
+SKILLS
+SQL, Amplitude, Figma, Jira, A/B testing, roadmapping
+
+EDUCATION
+B.Tech, Computer Science — Anna University, 2019
