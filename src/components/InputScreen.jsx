@@ -39,18 +39,52 @@ function DocInput({ label, hint, value, onChange, required }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
-      {error && <p className="text-xs text-red-600">{error}</p>}
+      {error && (
+        // Upload failures used to be easy to miss, which looked identical to
+        // "the app did nothing" when the user then hit Optimize.
+        <p className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-800">
+          Couldn’t read that file: {error}
+        </p>
+      )}
       {value && <p className="text-xs text-slate-500">{value.length.toLocaleString()} characters</p>}
     </div>
   );
 }
 
+const MIN_RESUME_CHARS = 50;
+
 export default function InputScreen({ onRun }) {
   const [resumeText, setResumeText] = useState('');
   const [experienceText, setExperienceText] = useState('');
   const [seniority, setSeniority] = useState('PM');
+  const [problem, setProblem] = useState('');
 
-  const canRun = resumeText.trim().length > 50;
+  /**
+   * Returns why the run can't start, or '' when it can.
+   *
+   * The button is deliberately never disabled. A dead control that does
+   * nothing and explains nothing is indistinguishable from a broken app —
+   * clicking it should always tell you something.
+   */
+  function validate() {
+    const resume = resumeText.trim();
+    if (!resume) {
+      return 'Add your resume first — paste the text above, or use “upload a file”.';
+    }
+    if (resume.length < MIN_RESUME_CHARS) {
+      return `That’s only ${resume.length} characters. Paste your full resume, or at least a few bullet points.`;
+    }
+    if (!/[a-zA-Z]{3,}/.test(resume)) {
+      return 'That doesn’t look like resume text. Paste the content of your resume.';
+    }
+    return '';
+  }
+
+  function handleClick() {
+    const why = validate();
+    setProblem(why);
+    if (!why) onRun({ resumeText, experienceText, seniority });
+  }
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-14">
@@ -66,7 +100,10 @@ export default function InputScreen({ onRun }) {
           required
           hint="The bullets to work on."
           value={resumeText}
-          onChange={setResumeText}
+          onChange={(v) => {
+            setResumeText(v);
+            setProblem(''); // stop nagging as soon as they act on it
+          }}
         />
 
         <DocInput
@@ -95,14 +132,18 @@ export default function InputScreen({ onRun }) {
         </p>
       )}
 
-      <button
-        className="btn-primary mt-6 w-full"
-        disabled={!canRun}
-        onClick={() => onRun({ resumeText, experienceText, seniority })}
-      >
+      {problem && (
+        <p className="mt-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+          {problem}
+        </p>
+      )}
+
+      <button className="btn-primary mt-6 w-full" onClick={handleClick}>
         Optimize my resume
       </button>
-      {!canRun && <p className="mt-2 text-center text-xs text-slate-500">Paste or upload a resume to begin.</p>}
+      <p className="mt-2 text-center text-xs text-slate-500">
+        Takes 2–4 minutes. You’ll see each step as it happens.
+      </p>
     </div>
   );
 }
