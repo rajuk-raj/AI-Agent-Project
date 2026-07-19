@@ -6,6 +6,7 @@
  */
 
 import mammoth from 'mammoth';
+import { itemsToLines, cleanResumeText } from '../../shared/pdfText.js';
 
 export const ACCEPTED = '.pdf,.docx,.txt,.md';
 
@@ -44,24 +45,8 @@ async function parsePdf(file) {
   for (let i = 1; i <= doc.numPages; i++) {
     const page = await doc.getPage(i);
     const content = await page.getTextContent();
-
-    // Rebuild lines from item positions — pdf.js emits positioned fragments,
-    // and joining them naively runs every bullet of a resume into one line.
-    const rows = new Map();
-    for (const item of content.items) {
-      if (!item.str?.trim()) continue;
-      const y = Math.round(item.transform[5]);
-      if (!rows.has(y)) rows.set(y, []);
-      rows.get(y).push({ x: item.transform[4], str: item.str });
-    }
-
-    const lines = [...rows.entries()]
-      .sort((a, b) => b[0] - a[0]) // top of page first
-      .map(([, parts]) =>
-        parts.sort((a, b) => a.x - b.x).map((p) => p.str).join(' ').replace(/\s+/g, ' ').trim()
-      );
-
-    pages.push(lines.join('\n'));
+    // Shared with the Node tests, so what runs here is what was verified.
+    pages.push(itemsToLines(content.items).join('\n'));
   }
 
   const text = pages.join('\n\n');
@@ -75,11 +60,4 @@ async function parsePdf(file) {
   return text;
 }
 
-function clean(text) {
-  return text
-    .replace(/\r\n/g, '\n')
-    .replace(/[•▪●·]\s*/g, '- ') // normalise bullet glyphs
-    .replace(/\n{3,}/g, '\n\n')
-    .replace(/[ \t]+/g, ' ')
-    .trim();
-}
+const clean = cleanResumeText;
