@@ -10,6 +10,8 @@ export default function App() {
   const [phase, setPhase] = useState(PHASE.INPUT);
   const [lines, setLines] = useState([]);
   const [step, setStep] = useState(1);
+  const [bullets, setBullets] = useState([]);
+  const [activity, setActivity] = useState('');
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
 
@@ -28,11 +30,15 @@ export default function App() {
     setPhase(PHASE.RUNNING);
     setLines([]);
     setStep(1);
+    setBullets([]);
+    setActivity('');
     setError(null);
     try {
       const res = await runAgent(input, {
         onLog: (line) => setLines((prev) => [...prev, line]),
         onStep: setStep,
+        onBullets: setBullets,
+        onActivity: setActivity,
       });
       setResult(res);
       setPhase(PHASE.DONE);
@@ -43,7 +49,8 @@ export default function App() {
   }
 
   if (phase === PHASE.INPUT) return <InputScreen onRun={handleRun} />;
-  if (phase === PHASE.RUNNING) return <ProgressLog lines={lines} step={step} />;
+  if (phase === PHASE.RUNNING)
+    return <ProgressLog lines={lines} step={step} bullets={bullets} activity={activity} />;
   if (phase === PHASE.DONE) return <OutputScreen result={result} onRestart={() => setPhase(PHASE.INPUT)} />;
 
   return (

@@ -48,7 +48,19 @@ function actionText(reason, isFinal) {
   return 'out of attempts — flagging for you to review';
 }
 
-export async function runAgent({ resumeText, experienceText = '', seniority }, { onLog, onStep }) {
+/** Live per-bullet state, so the UI can show work in flight rather than only after the fact. */
+export const BULLET_STATE = {
+  QUEUED: 'queued',
+  WORKING: 'working',
+  ACCEPTED: 'accepted',
+  ASKING: 'asking',
+  FLAGGED: 'flagged',
+};
+
+export async function runAgent(
+  { resumeText, experienceText = '', seniority },
+  { onLog, onStep, onBullets = () => {}, onActivity = () => {} }
+) {
   const log = (kind, text) => onLog({ kind, text, at: Date.now() });
   const usage = { calls: 0, inputTokens: 0, outputTokens: 0 };
   const track = (meta) => {
@@ -60,6 +72,7 @@ export async function runAgent({ resumeText, experienceText = '', seniority }, {
 
   /* ---------- Step 1-2: parse + decompose ---------- */
   onStep(1);
+  onActivity('Reading your resume');
   log(LOG.STEP, 'Reading your resume…');
   const dec = await api.decompose({ resumeText, experienceText });
   track(dec.meta);
@@ -68,6 +81,7 @@ export async function runAgent({ resumeText, experienceText = '', seniority }, {
 
   /* ---------- Step 3: competency mapping ---------- */
   onStep(2);
+  onActivity(`Assessing ${dec.bullets.length} bullets against the competency model`);
   log(LOG.STEP, 'Checking which PM competencies your resume demonstrates…');
   const map = await api.mapCompetency({ bullets: dec.bullets, seniority });
   track(map.meta);
@@ -88,10 +102,28 @@ export async function runAgent({ resumeText, experienceText = '', seniority }, {
   const byId = new Map(map.bullets.map((b) => [b.id, b]));
   const results = [];
 
+  // Seed the live board so the user can see the whole queue up front, not just
+  // whichever bullet happens to be in flight.
+  const board = map.rewriteIds.map((id) => ({
+    id,
+    text: byId.get(id).text,
+    state: BULLET_STATE.QUEUED,
+    attempts: 0,
+    score: null,
+  }));
+  const publish = () => onBullets([...board]);
+  publish();
+
   for (const [i, id] of map.rewriteIds.entries()) {
     const bullet = byId.get(id);
     const target = bullet.potentialCompetency ?? bullet.competency;
     const closesGap = map.coverage.gapIds.includes(target);
+    const slot = board.find((b) => b.id === id);
+
+    slot.state = BULLET_STATE.WORKING;
+    slot.target = competencyLabel(target);
+    publish();
+    onActivity(`Rewriting bullet ${i + 1} of ${map.rewriteIds.length}`);
 
     log(
       LOG.STEP,
@@ -114,7 +146,12 @@ export async function runAgent({ resumeText, experienceText = '', seniority }, {
       {
         rewriteFn: api.rewrite,
         scoreFn: api.score,
-        onProgress: () => {},
+        // Fires after each scored attempt, so a bullet that retries three
+        // times visibly counts up instead of sitting frozen for 30 seconds.
+        onProgress: () => {
+          slot.attempts += 1;
+          publish();
+        },
       }
     );
 
@@ -143,6 +180,16 @@ export async function runAgent({ resumeText, experienceText = '', seniority }, {
       log(LOG.WARN, 'Parked — your documents don’t contain the data this needs.');
     }
 
+    slot.state =
+      res.outcome === OUTCOME.ACCEPTED
+        ? BULLET_STATE.ACCEPTED
+        : res.outcome === OUTCOME.NEEDS_CLARIFICATION
+        ? BULLET_STATE.ASKING
+        : BULLET_STATE.FLAGGED;
+    slot.score = res.best?.composite ?? null;
+    slot.attempts = res.attempts.length;
+    publish();
+
     results.push({ id, original: bullet.text, bullet, target, ...res });
   }
 
@@ -152,6 +199,7 @@ export async function runAgent({ resumeText, experienceText = '', seniority }, {
   let questions = [];
 
   if (needInfo.length) {
+    onActivity('Working out what to ask you');
     log(LOG.STEP, 'Working out what to ask you…');
     const q = await api.generateQuestions({
       bullets: needInfo.map((r) => ({ id: r.id, text: r.original, bestRewrite: r.best?.rewrite })),
@@ -163,6 +211,7 @@ export async function runAgent({ resumeText, experienceText = '', seniority }, {
 
   /* ---------- Compile ---------- */
   onStep(5);
+  onActivity('Assembling your results');
   const accepted = results.filter((r) => r.outcome === OUTCOME.ACCEPTED);
   const flagged = results.filter((r) => r.outcome === OUTCOME.FLAGGED);
 
