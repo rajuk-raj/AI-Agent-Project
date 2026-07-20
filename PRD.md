@@ -4,6 +4,25 @@
 **Supersedes:** `Resume_Bullet_Optimizer_Agent_Plan.docx` (architecture doc — carried forward where noted)
 **Repo:** https://github.com/rajuk-raj/AI-Agent-Project
 
+## Changelog — v1.2 → v1.3 (JD path)
+
+The v2 JD path from v1.0, brought forward. Company + role → Serper search → fetch the posting → structure it. The user reviews what was found and can paste or replace it.
+
+**The JD is a lens, not a source.** This is the load-bearing design decision. A job posting is full of appealing phrases — *"led cross-functional teams"*, *"drove 30% growth"* — that are claims about the **role**, not facts about the candidate. So the JD:
+
+- goes into the **rewriter's** prompt, to decide which true accomplishment to lead with and what vocabulary to use
+- is **excluded** from the documents the scorer's fabrication check treats as evidence
+
+Without that split, the agent could launder a job requirement into someone's resume — worse than fabricating a metric, because it isn't even their work.
+
+Verified: the same bullet, same source notes, aimed at an ops-efficiency role vs a risk-platform role, produced *"Streamlined disputes process, reducing manual handling by 60%"* vs *"Aligned risk, engineering, and legal teams on evidence format"*. Different emphasis, no invented facts.
+
+**Provenance is always shown**, per §4.3: `pasted` / `fetched from a live posting` / `assembled from search snippets`, with the source URL and a warning when the JD is fragments rather than a real ad.
+
+**Explicitly not built: generating a JD from the model's knowledge of a company.** It would read plausibly, be unverifiable, and mean tailoring a resume to an invented standard — the same failure the product refuses everywhere else. If search finds nothing, the user pastes the posting or proceeds without one.
+
+**Security:** fetched pages are untrusted input. They are wrapped as data, the extraction prompt instructs the model to ignore any instructions found inside them, and URL fetching is restricted to public http/https hosts.
+
 ## Changelog — v1.1 → v1.2 (flow change)
 
 **The product is now a directed workspace, not a one-shot autonomous run.** Requested after using v1.1: optimizing a whole resume in one pass is not how anyone actually writes one. People work on a section, get it right, then move on.

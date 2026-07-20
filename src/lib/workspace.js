@@ -138,6 +138,10 @@ export async function rewritePoint(session, { point, targetCompetency, avoid = [
           // Force a different angle on regeneration.
           attempt: Math.max(args.attempt, avoid.length ? 1 : 0),
           previousAttempts: [...avoid, ...args.previousAttempts],
+          // Lens for emphasis and wording. Deliberately NOT passed to scoreFn:
+          // the scorer's fabrication check must treat only the candidate's own
+          // documents as evidence, or a JD requirement could be laundered in.
+          jd: session.jd?.jd ?? null,
         }),
       scoreFn: api.score,
     }

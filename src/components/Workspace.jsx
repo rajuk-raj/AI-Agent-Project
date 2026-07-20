@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import SectionPicker from './SectionPicker.jsx';
 import PointCard from './PointCard.jsx';
+import JdPanel from './JdPanel.jsx';
 import { rewriteSection, rewritePoint, POINT } from '../lib/workspace.js';
 import { SENIORITY } from '../../shared/competencyModel.js';
 
@@ -97,6 +98,7 @@ export default function Workspace({ session, onSession, onReset }) {
           <p className="text-xs text-slate-500">
             {SENIORITY[session.seniority]?.label} · resume loaded
             {session.experienceText ? ' · experience notes loaded' : ' · no experience notes'}
+            {session.jd && ` · targeting ${session.jd.jd.title}`}
           </p>
         </div>
         <button className="btn-ghost" onClick={onReset}>Change documents</button>
@@ -104,6 +106,18 @@ export default function Workspace({ session, onSession, onReset }) {
 
       {error && (
         <p className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
+      )}
+
+      {!active && (
+        <JdPanel
+          jd={session.jd}
+          onChange={(jd) => {
+            // A different target changes emphasis, so cached rewrites no longer
+            // reflect the current settings. Clearing is more honest than
+            // showing stale output beside a new JD.
+            onSession({ ...session, jd, results: {} });
+          }}
+        />
       )}
 
       {!active ? (

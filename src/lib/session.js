@@ -21,6 +21,9 @@ const EMPTY = {
   analysis: null,
   // Rewritten points, keyed by section id, so revisiting a section costs nothing.
   results: {},
+  // Target job description, if the user supplied or found one. Influences
+  // emphasis and wording only — never treated as evidence about the candidate.
+  jd: null,
 };
 
 export function loadSession() {

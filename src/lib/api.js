@@ -49,6 +49,8 @@ async function post(route, body, { retries = 2 } = {}) {
 export const decompose = (body) => post('decompose', body);
 export const extractSections = (body) => post('sections', body);
 export const refine = (body) => post('refine', body);
+// Search + fetch is slower than a plain model call, so allow a longer wait.
+export const resolveJd = (body) => post('jd', body, { retries: 1 });
 export const mapCompetency = (body) => post('map-competency', body);
 export const rewrite = (body) => post('rewrite', body);
 export const score = (body) => post('score', body);

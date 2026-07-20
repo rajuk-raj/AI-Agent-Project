@@ -19,6 +19,8 @@ export async function rewrite({
   previousAttempts = [],
   gapIds = [],
   otherBullets = [],
+  // Lens only — never added to the documents the fabrication check trusts.
+  jd = null,
 }) {
   if (!bullet?.text) throw new Error('bullet.text is required.');
   if (!resumeText?.trim()) throw new Error('resumeText is required — rewrites must be grounded in the source.');
@@ -41,6 +43,7 @@ export async function rewrite({
       previousAttempts,
       isGapCompetency: gapIds.includes(targetCompetency),
       otherBullets,
+      jd,
     }),
     schema: REWRITE_SCHEMA,
     schemaName: 'bullet_rewrite',
