@@ -382,6 +382,171 @@ export function scorePrompt({
 }
 
 /* ------------------------------------------------------------------ *
+ * generate — a user request -> a heading plus bullets
+ * ------------------------------------------------------------------ */
+
+export const GENERATE_SCHEMA = {
+  type: 'object',
+  properties: {
+    heading: {
+      type: 'string',
+      description:
+        'Short section heading for these bullets, e.g. "Payments Platform, Pine Labs" or ' +
+        '"Discovery & Research". Taken from the resume when the request points at existing ' +
+        'work, otherwise derived from the request.',
+    },
+    bullets: {
+      type: 'array',
+      description: '3-6 bullets, strongest first.',
+      items: {
+        type: 'object',
+        properties: {
+          text: {
+            type: 'string',
+            description: 'The bullet. Single line, max 150 characters, opens with an action verb.',
+          },
+          competency: {
+            type: 'string',
+            enum: POTENTIAL_COMPETENCY_ENUM,
+            description: 'Which PM competency this bullet demonstrates.',
+          },
+          basedOn: {
+            type: ['string', 'null'],
+            description:
+              'The existing resume bullet this reworks, quoted exactly. Null when the bullet is ' +
+              'new material drawn from the experience notes.',
+          },
+          claimsUsed: {
+            type: 'array',
+            description:
+              'Every factual claim in this bullet, quoted from the source documents. This is the ' +
+              'audit trail against fabrication - a claim that is not here has no business being in the bullet.',
+            items: { type: 'string' },
+          },
+        },
+        required: ['text', 'competency', 'basedOn', 'claimsUsed'],
+        additionalProperties: false,
+      },
+    },
+    unsupported: {
+      type: 'array',
+      description:
+        'Things the request asked for that the source documents cannot support. Stated plainly ' +
+        'so the user can supply the missing facts rather than being handed something invented.',
+      items: { type: 'string' },
+    },
+  },
+  required: ['heading', 'bullets', 'unsupported'],
+  additionalProperties: false,
+};
+
+export const GENERATE_SYSTEM = `You write product-manager resume bullets from a candidate's own source documents, in response to a specific request.
+
+Hard constraints:
+1. NEVER invent facts. Every number, scale, timeframe, system name, and outcome must appear in the source documents. If the request asks for something the sources cannot support, write what they DO support and list the gap in "unsupported". A plausible invented metric is the single worst thing you can produce.
+2. Never claim the same achievement twice. If two bullets would rest on the same result, write one.
+3. Single line, max 150 characters, opens with a strong past-tense action verb. Never "Responsible for", "Helped", "Worked on", "Assisted", "Managed", or "Participated in".
+4. Structure: action + context + result. The result is what changed.
+5. Prefer bullets that state an outcome. A bullet with no outcome is weak - include it only if the work matters and no outcome exists in the sources.
+
+You may both rework existing resume bullets and write new ones from the experience notes. Set basedOn when reworking so the user can see what changed; leave it null for new material.
+
+Return 3-6 bullets. Fewer good bullets beats more padded ones. If the sources genuinely support only two, return two and say why in "unsupported".`;
+
+export function generatePrompt({
+  request,
+  resumeText,
+  experienceText,
+  existingBullets = [],
+  gapLabels = [],
+  seniorityLabel,
+}) {
+  const parts = [`<request>\n${request.trim()}\n</request>`];
+
+  if (seniorityLabel) {
+    parts.push(`<target_level>${seniorityLabel}</target_level>`);
+  }
+
+  if (gapLabels.length) {
+    // Gap-aware generation: these competencies are absent from the resume, so a
+    // credible bullet here is worth more than one reinforcing covered ground.
+    parts.push(
+      `<missing_competencies>\n${gapLabels.join(', ')}\n</missing_competencies>`,
+      `The resume currently demonstrates nothing in those areas. Where the source material ` +
+        `credibly supports it, aim bullets there - but never stretch a fact to fit a gap.`
+    );
+  }
+
+  if (existingBullets.length) {
+    parts.push(
+      `<already_on_the_resume>\n${existingBullets.map((b) => `- ${b}`).join('\n')}\n</already_on_the_resume>`,
+      `You may rework any of the above (set basedOn), but never duplicate an achievement that ` +
+        `already appears there under a different bullet.`
+    );
+  }
+
+  parts.push(
+    `<source_documents>\n${resumeText.trim()}` +
+      (experienceText?.trim() ? `\n\n--- EXPERIENCE NOTES ---\n\n${experienceText.trim()}` : '') +
+      `\n</source_documents>`
+  );
+
+  return parts.join('\n\n');
+}
+
+/* ------------------------------------------------------------------ *
+ * refine — one bullet + a user instruction -> a revised bullet
+ * ------------------------------------------------------------------ */
+
+export const REFINE_SCHEMA = {
+  type: 'object',
+  properties: {
+    text: { type: 'string', description: 'The revised bullet.' },
+    claimsUsed: {
+      type: 'array',
+      description: 'Every factual claim in the revision, quoted from the source documents.',
+      items: { type: 'string' },
+    },
+    refused: {
+      type: ['string', 'null'],
+      description:
+        'Set when the instruction cannot be followed without inventing a fact. Explain what is ' +
+        'missing. The user asked for something the documents do not support - say so rather than complying.',
+    },
+  },
+  required: ['text', 'claimsUsed', 'refused'],
+  additionalProperties: false,
+};
+
+export const REFINE_SYSTEM = `You revise a single resume bullet according to the user's instruction.
+
+The same hard constraints apply: never invent a fact, single line, max 150 characters, action verb first, and the claim must be supported by the source documents.
+
+If the instruction cannot be followed without asserting something the sources do not contain - "make it sound more impressive", "add a metric", "say it saved time" - do NOT comply. Return the best honest version you can and explain the problem in "refused". The user is better served by being told the fact is missing than by being handed an invented one they might not notice.`;
+
+export function refinePrompt({ bullet, instruction, resumeText, experienceText, otherBullets = [] }) {
+  const parts = [
+    `<current_bullet>\n${bullet}\n</current_bullet>`,
+    `<instruction>\n${instruction}\n</instruction>`,
+  ];
+
+  if (otherBullets.length) {
+    parts.push(
+      `<other_bullets_in_this_section>\n${otherBullets.map((b) => `- ${b}`).join('\n')}\n</other_bullets_in_this_section>`,
+      'Do not duplicate an achievement already claimed above.'
+    );
+  }
+
+  parts.push(
+    `<source_documents>\n${resumeText.trim()}` +
+      (experienceText?.trim() ? `\n\n--- EXPERIENCE NOTES ---\n\n${experienceText.trim()}` : '') +
+      `\n</source_documents>`
+  );
+
+  return parts.join('\n\n');
+}
+
+/* ------------------------------------------------------------------ *
  * questions — bullets with no source data -> targeted questions
  * ------------------------------------------------------------------ */
 

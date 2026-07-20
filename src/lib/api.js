@@ -47,6 +47,8 @@ async function post(route, body, { retries = 2 } = {}) {
 }
 
 export const decompose = (body) => post('decompose', body);
+export const generate = (body) => post('generate', body);
+export const refine = (body) => post('refine', body);
 export const mapCompetency = (body) => post('map-competency', body);
 export const rewrite = (body) => post('rewrite', body);
 export const score = (body) => post('score', body);

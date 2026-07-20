@@ -1,73 +1,62 @@
 import { useEffect, useState } from 'react';
-import InputScreen from './components/InputScreen.jsx';
-import ProgressLog from './components/ProgressLog.jsx';
-import OutputScreen from './components/OutputScreen.jsx';
-import { runAgent } from './lib/orchestrator.js';
-
-const PHASE = { INPUT: 'input', RUNNING: 'running', DONE: 'done', ERROR: 'error' };
+import SetupScreen from './components/SetupScreen.jsx';
+import Workspace from './components/Workspace.jsx';
+import { analyzeDocuments } from './lib/workspace.js';
+import { loadSession, saveSession, clearSession, hasDocuments } from './lib/session.js';
 
 export default function App() {
-  const [phase, setPhase] = useState(PHASE.INPUT);
-  const [lines, setLines] = useState([]);
-  const [step, setStep] = useState(1);
-  const [bullets, setBullets] = useState([]);
-  const [activity, setActivity] = useState('');
-  const [result, setResult] = useState(null);
+  const [session, setSession] = useState(() => loadSession());
+  const [busy, setBusy] = useState(false);
+  const [stage, setStage] = useState('');
   const [error, setError] = useState(null);
 
-  // Run state lives in memory (see orchestrator.js), so a refresh loses it.
-  useEffect(() => {
-    if (phase !== PHASE.RUNNING) return;
-    const warn = (e) => {
-      e.preventDefault();
-      e.returnValue = '';
-    };
-    window.addEventListener('beforeunload', warn);
-    return () => window.removeEventListener('beforeunload', warn);
-  }, [phase]);
+  // Persist on every change, so a refresh mid-session loses nothing.
+  useEffect(() => saveSession(session), [session]);
 
-  async function handleRun(input) {
-    setPhase(PHASE.RUNNING);
-    setLines([]);
-    setStep(1);
-    setBullets([]);
-    setActivity('');
+  async function handleReady({ resumeText, experienceText, seniority }) {
+    setBusy(true);
     setError(null);
     try {
-      const res = await runAgent(input, {
-        onLog: (line) => setLines((prev) => [...prev, line]),
-        onStep: setStep,
-        onBullets: setBullets,
-        onActivity: setActivity,
-      });
-      setResult(res);
-      setPhase(PHASE.DONE);
-    } catch (err) {
-      setError(err);
-      setPhase(PHASE.ERROR);
+      const analysis = await analyzeDocuments(
+        { resumeText, experienceText, seniority },
+        { onStage: setStage }
+      );
+      setSession((s) => ({ ...s, resumeText, experienceText, seniority, analysis, sections: s.sections ?? [] }));
+    } catch (e) {
+      setError(e);
+    } finally {
+      setBusy(false);
+      setStage('');
     }
   }
 
-  if (phase === PHASE.INPUT) return <InputScreen onRun={handleRun} />;
-  if (phase === PHASE.RUNNING)
-    return <ProgressLog lines={lines} step={step} bullets={bullets} activity={activity} />;
-  if (phase === PHASE.DONE) return <OutputScreen result={result} onRestart={() => setPhase(PHASE.INPUT)} />;
+  function handleReset() {
+    // Documents change, so the cached analysis and any generated sections no
+    // longer describe the same resume. Keeping them would silently mix sources.
+    if (!confirm('Change documents? Generated sections will be cleared.')) return;
+    clearSession();
+    setSession(loadSession());
+  }
 
-  return (
-    <div className="mx-auto max-w-2xl px-6 py-14">
-      <h2 className="text-lg font-semibold text-red-700">The run failed</h2>
-      <p className="mt-2 text-sm text-slate-700">{error?.message}</p>
-      {error?.status === 429 && (
-        <p className="mt-2 text-sm text-slate-600">
-          That’s a rate limit or an exhausted quota. Check your usage at platform.openai.com.
-        </p>
-      )}
-      <div className="card mt-6 max-h-72 overflow-y-auto p-4">
-        <pre className="whitespace-pre-wrap font-mono text-xs text-slate-600">
-          {lines.map((l, i) => <div key={i}>{l.text}</div>)}
-        </pre>
+  if (error) {
+    return (
+      <div className="mx-auto max-w-2xl px-6 py-14">
+        <h2 className="text-lg font-semibold text-red-700">Something went wrong</h2>
+        <p className="mt-2 text-sm text-slate-700">{error.message}</p>
+        {error.status === 429 && (
+          <p className="mt-2 text-sm text-slate-600">
+            That’s a rate limit or an exhausted quota — check your usage at platform.openai.com.
+          </p>
+        )}
+        <button className="btn-primary mt-6" onClick={() => setError(null)}>Back</button>
       </div>
-      <button className="btn-primary mt-6" onClick={() => setPhase(PHASE.INPUT)}>Back</button>
-    </div>
-  );
+    );
+  }
+
+  const ready = hasDocuments(session) && session.analysis;
+  if (!ready) {
+    return <SetupScreen initial={session} onReady={handleReady} busy={busy} stage={stage} />;
+  }
+
+  return <Workspace session={session} onSession={setSession} onReset={handleReset} />;
 }

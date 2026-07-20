@@ -77,6 +77,29 @@ test('checkFormat flags a weak opener by name', () => {
   assert.match(r.issues.join(' '), /Responsible for|responsible for/);
 });
 
+test('every competency has usable opening verbs', () => {
+  // Regression: "presented" was missing, so the most natural verb for the
+  // Stakeholder & exec communication competency failed the format check.
+  const perCompetency = {
+    DISCOVERY: 'Interviewed 18 merchants to find why mid-market signups stalled',
+    PRIORITIZATION: 'Deprioritized the API rebuild to fund fraud tooling, tripling projected impact',
+    METRICS: 'Quantified churn drivers and cut monthly churn from 8% to 5%',
+    INFLUENCE: 'Aligned eng and legal on a shared KYC standard, unblocking a delayed launch',
+    EXECUTION: 'Shipped a settlement dashboard used by 4,200 merchants in its first quarter',
+    COMMUNICATION: 'Presented the churn model to the exec team, securing 2 extra headcount',
+    DOMAIN: 'Architected the idempotency model, eliminating duplicate-charge incidents',
+  };
+
+  for (const [competency, bullet] of Object.entries(perCompetency)) {
+    const r = checkFormat(bullet);
+    assert.deepEqual(
+      r.issues,
+      [],
+      `${competency} bullet rejected: ${r.issues.join(' | ')}\n  ${bullet}`
+    );
+  }
+});
+
 test('checkFormat flags a non-action opener', () => {
   const r = checkFormat('Various improvements to the onboarding funnel over two quarters');
   assert.equal(r.pass, false);

@@ -65,19 +65,41 @@ export const ROUTING = {
  * "Helped", "Worked on", "Assisted") and vague ones ("Managed", "Handled") that
  * describe a role rather than an accomplishment.
  */
+/**
+ * Grouped by competency so gaps are visible on inspection. The first version
+ * of this list omitted "presented" — which penalised the single most natural
+ * verb for the Stakeholder & exec communication competency. When adding a
+ * competency, check its characteristic verbs appear here.
+ */
 export const ACTION_VERBS = new Set([
-  'accelerated', 'achieved', 'aligned', 'architected', 'automated', 'built',
-  'championed', 'consolidated', 'converted', 'created', 'cut', 'defined',
-  'delivered', 'deprecated', 'designed', 'diagnosed', 'doubled', 'drove',
-  'eliminated', 'enabled', 'established', 'expanded', 'grew', 'identified',
-  'implemented', 'improved', 'increased', 'influenced', 'initiated',
-  'instrumented', 'integrated', 'introduced', 'launched', 'led', 'migrated',
-  'negotiated', 'optimized', 'orchestrated', 'overhauled', 'partnered',
-  'pioneered', 'pitched', 'prioritized', 'proposed', 'prototyped', 'rebuilt',
-  'recovered', 'redesigned', 'reduced', 'refocused', 'released', 'removed',
-  'repositioned', 'resolved', 'restructured', 'scaled', 'scoped', 'secured',
-  'shipped', 'simplified', 'standardized', 'streamlined', 'tripled',
-  'unblocked', 'unified', 'validated',
+  // discovery & research
+  'analyzed', 'benchmarked', 'diagnosed', 'identified', 'interviewed',
+  'investigated', 'mapped', 'researched', 'surfaced', 'synthesized',
+  'uncovered', 'validated',
+  // prioritization & roadmap
+  'consolidated', 'cut', 'deprecated', 'deprioritized', 'prioritized',
+  'refocused', 'repositioned', 'scoped', 'sequenced', 'sunset',
+  // metrics & data
+  'doubled', 'forecast', 'grew', 'increased', 'instrumented', 'measured',
+  'modeled', 'quantified', 'reduced', 'tripled',
+  // cross-functional influence
+  'aligned', 'championed', 'convinced', 'coordinated', 'influenced',
+  'negotiated', 'partnered', 'rallied', 'unblocked', 'unified',
+  // execution & delivery
+  'accelerated', 'achieved', 'automated', 'built', 'created', 'delivered',
+  'deployed', 'designed', 'drove', 'eliminated', 'enabled', 'established',
+  'executed', 'expanded', 'implemented', 'improved', 'initiated', 'integrated',
+  'introduced', 'launched', 'led', 'migrated', 'optimized', 'orchestrated',
+  'overhauled', 'pioneered', 'prototyped', 'rebuilt', 'recovered',
+  'redesigned', 'released', 'removed', 'resolved', 'restructured', 'scaled',
+  'shipped', 'simplified', 'standardized', 'streamlined',
+  // stakeholder & exec communication
+  'advised', 'authored', 'briefed', 'communicated', 'persuaded', 'pitched',
+  'presented', 'proposed', 'reported', 'secured', 'wrote',
+  // domain & technical depth
+  'architected', 'defined', 'engineered', 'formalized', 'specified',
+  // people
+  'coached', 'directed', 'mentored', 'trained',
 ]);
 
 const WEAK_OPENERS = [

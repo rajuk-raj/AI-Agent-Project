@@ -4,6 +4,26 @@
 **Supersedes:** `Resume_Bullet_Optimizer_Agent_Plan.docx` (architecture doc — carried forward where noted)
 **Repo:** https://github.com/rajuk-raj/AI-Agent-Project
 
+## Changelog — v1.1 → v1.2 (flow change)
+
+**The product is now a directed workspace, not a one-shot autonomous run.** Requested after using v1.1: optimizing a whole resume in one pass is not how anyone actually writes one. People work on a section, get it right, then move on.
+
+| Was (v1.1) | Now (v1.2) |
+|---|---|
+| Upload → agent processes every bullet → review results | Upload once → ask for a section → refine it → ask for the next |
+| Agent decides what to work on | **You** decide, per request |
+| Rewrites existing bullets only | Generates new bullets from experience notes **and** reworks existing ones |
+| Inputs re-entered per run | Inputs persist for the session (`localStorage`) |
+| Full-screen progress log | Self-correction runs inside each generation; surfaced per bullet as "working · N%" |
+
+**This changes the autonomy story, and that should be stated plainly rather than papered over.** The original plan's framing — *"AI Tool: user drives every step"* vs *"AI Agent: agent runs autonomously"* — put the product on the autonomous side. v1.2 moves the human back between steps.
+
+What makes it still an agent is unchanged and now runs per generation: it decides whether to rework an existing bullet or write a new one, scores its own drafts, silently retries the ones a rewrite can fix, drops the ones that would duplicate or fabricate, and refuses user instructions it cannot honour. The demo-day line shifts from *"it runs unattended"* to *"you never see the drafts it rejected."*
+
+**New:** `api/generate.js` (request → heading + bullets) and `api/refine.js` (bullet + instruction → revision, or a refusal). Refusal is the notable one: asked to "say it increased productivity by 40%", the agent declines and names the missing evidence rather than complying.
+
+**Retired:** the whole-resume autonomous run. One product, not two half-maintained paths.
+
 ## Changelog — v1.0 → v1.1
 
 Revisions forced by building the thing. Each is a claim in v1.0 that contact with a real resume disproved.
