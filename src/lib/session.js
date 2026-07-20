@@ -17,9 +17,10 @@ const EMPTY = {
   resumeText: '',
   experienceText: '',
   seniority: 'PM',
-  // Set once after upload; gives every later generation gap awareness.
+  // Set once after upload: the sections found, plus current competency coverage.
   analysis: null,
-  sections: [],
+  // Rewritten points, keyed by section id, so revisiting a section costs nothing.
+  results: {},
 };
 
 export function loadSession() {

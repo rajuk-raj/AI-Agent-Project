@@ -382,6 +382,65 @@ export function scorePrompt({
 }
 
 /* ------------------------------------------------------------------ *
+ * sections — both documents -> the headings you can work on
+ * ------------------------------------------------------------------ */
+
+export const SECTIONS_SCHEMA = {
+  type: 'object',
+  properties: {
+    sections: {
+      type: 'array',
+      description: 'Every section that contains points worth rewriting, in document order.',
+      items: {
+        type: 'object',
+        properties: {
+          heading: {
+            type: 'string',
+            description:
+              'How the section is labelled in the document, e.g. "Senior Product Manager, Pine Labs" ' +
+              'or "Onboarding project". Use the document\'s own wording.',
+          },
+          source: { type: 'string', enum: ['resume', 'experience'] },
+          context: {
+            type: ['string', 'null'],
+            description: 'Dates, company, or role if stated alongside the heading. Null if absent.',
+          },
+          points: {
+            type: 'array',
+            description:
+              'Each point under this heading, copied VERBATIM. One entry per bullet or sentence-level ' +
+              'claim. Never merge two points, never reword.',
+            items: { type: 'string' },
+          },
+        },
+        required: ['heading', 'source', 'context', 'points'],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ['sections'],
+  additionalProperties: false,
+};
+
+export const SECTIONS_SYSTEM = `You split a candidate's documents into the sections they could choose to work on.
+
+Rules:
+- Copy every point VERBATIM. You are indexing, not editing. The user will be shown their original text beside the rewrite, so an "improved" original makes the comparison meaningless.
+- A section is a heading plus the points beneath it: a job, a project, a themed group of notes.
+- Include sections from BOTH the resume and the experience notes. Experience notes are often loose prose - split them into discrete points at natural claim boundaries, still verbatim.
+- Skip sections with nothing to rewrite: contact details, a bare skills list, education with no accomplishments.
+- If a document has no clear headings, group by employer, project, or topic and name the group using the document's own words.`;
+
+export function sectionsPrompt({ resumeText, experienceText }) {
+  const parts = [`<resume>\n${resumeText.trim()}\n</resume>`];
+  if (experienceText?.trim()) {
+    parts.push(`<experience_notes>\n${experienceText.trim()}\n</experience_notes>`);
+  }
+  parts.push('List every section the candidate could work on, with its points copied verbatim.');
+  return parts.join('\n\n');
+}
+
+/* ------------------------------------------------------------------ *
  * generate — a user request -> a heading plus bullets
  * ------------------------------------------------------------------ */
 

@@ -21,7 +21,7 @@ export default function App() {
         { resumeText, experienceText, seniority },
         { onStage: setStage }
       );
-      setSession((s) => ({ ...s, resumeText, experienceText, seniority, analysis, sections: s.sections ?? [] }));
+      setSession((s) => ({ ...s, resumeText, experienceText, seniority, analysis, results: {} }));
     } catch (e) {
       setError(e);
     } finally {
@@ -33,7 +33,7 @@ export default function App() {
   function handleReset() {
     // Documents change, so the cached analysis and any generated sections no
     // longer describe the same resume. Keeping them would silently mix sources.
-    if (!confirm('Change documents? Generated sections will be cleared.')) return;
+    if (!confirm('Change documents? Your rewritten points will be cleared.')) return;
     clearSession();
     setSession(loadSession());
   }

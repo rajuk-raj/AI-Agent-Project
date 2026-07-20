@@ -1,224 +1,194 @@
 /**
- * Workspace operations — the agent loop, scoped to one user request at a time.
+ * Workspace operations.
  *
- * The self-correction that used to run across a whole resume now runs inside a
- * single generation: bullets are generated, each is scored, and the ones that
- * fail on grounds a rewrite can fix are quietly regenerated before the user
- * ever sees them. What surfaces is the verdict, with the working available on
- * demand.
+ * The unit of work is one section the user picked. Every point already written
+ * in that section is rewritten one-for-one, so the user can see their original
+ * beside the improvement and regenerate any single point they dislike.
+ *
+ * The self-correction loop (score, retry a different angle, refuse to
+ * fabricate) runs per point, invisibly. What surfaces is the verdict.
  */
 
 import * as api from './api.js';
-import { REASON, ROUTE } from '../../shared/scoring.js';
+import { optimizeBullet, OUTCOME } from '../../shared/optimizeLoop.js';
+import { REASON } from '../../shared/scoring.js';
 
-export const VERDICT = {
-  GOOD: 'good',
+export const POINT = {
+  PENDING: 'pending',
+  WORKING: 'working',
+  IMPROVED: 'improved',
   NEEDS_DATA: 'needs_data',
   REFUSED: 'refused',
-  WEAK: 'weak',
+  UNCHANGED: 'unchanged',
 };
 
-/** Plain-language verdict for a scored bullet, plus whether to keep it. */
-function verdictFor(scored) {
-  if (scored.fabricationRisk) {
+/** Plain-language explanation of what happened to a point. */
+function explain(res) {
+  if (res.outcome === OUTCOME.ACCEPTED) return { state: POINT.IMPROVED, note: null };
+
+  if (res.reason === REASON.WOULD_REQUIRE_FABRICATION) {
     return {
-      verdict: VERDICT.REFUSED,
-      note: `Dropped — would have claimed “${scored.fabricatedClaims[0] ?? 'something not in your documents'}”, which isn’t in your documents.`,
+      state: POINT.REFUSED,
+      note: `Left alone — improving it would have meant claiming “${
+        res.fabricatedClaims?.[0] ?? 'something not in your documents'
+      }”, which isn’t in your documents.`,
     };
   }
-  if (scored.duplicatesAnotherBullet) {
+  if (res.reason === REASON.NO_QUANTIFIABLE_DATA) {
     return {
-      verdict: VERDICT.REFUSED,
-      note: 'Dropped — this achievement is already claimed by another bullet on your resume.',
+      state: POINT.NEEDS_DATA,
+      note: 'Your documents don’t say what changed here. Add the result to your notes, then regenerate.',
     };
   }
-  if (scored.reason === REASON.NO_QUANTIFIABLE_DATA) {
+  if (res.reason === REASON.DUPLICATES_EXISTING) {
     return {
-      verdict: VERDICT.NEEDS_DATA,
-      note: 'No number for this exists in your documents. Add it to your notes and regenerate.',
+      state: POINT.REFUSED,
+      note: 'Left alone — every stronger version borrowed a result that already belongs to another point.',
     };
   }
-  if (scored.route === ROUTE.ACCEPT) {
-    return { verdict: VERDICT.GOOD, note: null };
-  }
-  return { verdict: VERDICT.WEAK, note: scored.rationale };
+  return {
+    state: POINT.UNCHANGED,
+    note: 'Couldn’t improve this beyond the original without stretching the facts.',
+  };
 }
 
-async function scoreBullet({ bullet, section, session }) {
-  const scored = await api.score({
-    // A generated bullet has no "original"; the request it came from is the
-    // closest thing to intent, and the scorer needs something to compare against.
-    original: bullet.basedOn ?? section.request,
-    rewrite: bullet.text,
-    targetCompetency: bullet.competency,
-    resumeText: session.resumeText,
-    experienceText: session.experienceText,
-    otherBullets: (session.analysis?.bullets ?? [])
-      .map((b) => b.text)
-      .filter((t) => t !== bullet.basedOn),
-  });
-  return { scored, ...verdictFor(scored) };
-}
+/** One-time analysis: what sections exist, and how the resume currently reads. */
+export async function analyzeDocuments(
+  { resumeText, experienceText, seniority },
+  { onStage = () => {} } = {}
+) {
+  onStage('Finding the sections in your documents…');
+  const secs = await api.extractSections({ resumeText, experienceText });
 
-/**
- * One-time analysis after documents are supplied.
- *
- * Runs decompose + competency mapping so every later generation knows what is
- * already on the resume (to avoid duplicating it) and which competencies are
- * missing (to aim at them). Cached in the session — this does not re-run per
- * request.
- */
-export async function analyzeDocuments({ resumeText, experienceText, seniority }, { onStage = () => {} } = {}) {
-  onStage('Reading your resume…');
+  onStage('Checking which PM competencies your resume already shows…');
   const dec = await api.decompose({ resumeText, experienceText });
-
-  onStage(`Assessing ${dec.bullets.length} bullets against the PM competency model…`);
   const map = await api.mapCompetency({ bullets: dec.bullets, seniority });
 
   return {
-    bullets: map.bullets,
+    sections: secs.sections,
+    warnings: secs.warnings,
+    resumeBullets: map.bullets,
     coverage: map.coverage,
-    weakIds: map.rewriteIds,
     analyzedAt: Date.now(),
-    usage: {
-      calls: 2,
-      inputTokens: (dec.meta.usage.inputTokens ?? 0) + (map.meta.usage.inputTokens ?? 0),
-      outputTokens: (dec.meta.usage.outputTokens ?? 0) + (map.meta.usage.outputTokens ?? 0),
-    },
   };
+}
+
+/** Everything already claimed elsewhere, so a rewrite can't quietly reuse it. */
+function siblingClaims(analysis, excludeText) {
+  return [
+    ...(analysis?.resumeBullets ?? []).map((b) => b.text),
+    ...(analysis?.sections ?? []).flatMap((s) => s.points.map((p) => p.text)),
+  ].filter((t) => t && t !== excludeText);
 }
 
 /**
- * Generate a section, then self-check every bullet in it.
- *
- * @param {object} session
- * @param {string} request
- * @param {object} cb  { onStage, onBullets }
+ * Rewrite one point. Used both for the initial pass and for per-point
+ * regeneration — `avoid` carries versions the user already rejected, so a
+ * regenerate genuinely changes angle instead of returning the same sentence.
  */
-export async function generateSection(session, request, { onStage = () => {}, onBullets = () => {} } = {}) {
-  const usage = { calls: 0, inputTokens: 0, outputTokens: 0 };
-  const track = (meta) => {
-    if (!meta?.usage) return;
-    usage.calls += 1;
-    usage.inputTokens += meta.usage.inputTokens ?? 0;
-    usage.outputTokens += meta.usage.outputTokens ?? 0;
-  };
+export async function rewritePoint(session, { point, targetCompetency, avoid = [], instruction }) {
+  const analysis = session.analysis;
+  const gapIds = analysis?.coverage?.gapIds ?? [];
 
-  onStage('Reading your documents and drafting bullets…');
-  const gen = await api.generate({
-    request,
-    resumeText: session.resumeText,
-    experienceText: session.experienceText,
-    existingBullets: (session.analysis?.bullets ?? []).map((b) => b.text),
-    gapIds: session.analysis?.coverage?.gapIds ?? [],
-    seniority: session.seniority,
-  });
-  track(gen.meta);
+  // A user instruction is a different job from a blind retry: apply exactly
+  // what they asked, and refuse if it can't be done without inventing a fact.
+  if (instruction) {
+    const res = await api.refine({
+      bullet: point.rewrite ?? point.text,
+      instruction,
+      resumeText: session.resumeText,
+      experienceText: session.experienceText,
+      otherBullets: siblingClaims(analysis, point.text),
+    });
 
-  const section = { request, heading: gen.heading, unsupported: gen.unsupported };
-
-  // Show the drafts immediately, marked as checking. The user watches the
-  // agent grade its own work rather than staring at a spinner.
-  let bullets = gen.bullets.map((b) => ({ ...b, checking: true, verdict: null, note: null }));
-  onBullets([...bullets]);
-
-  onStage(`Checking ${bullets.length} bullets against your documents…`);
-
-  for (let i = 0; i < bullets.length; i++) {
-    const b = bullets[i];
-    let { scored, verdict, note } = await scoreBullet({ bullet: b, section: { request }, session });
-    track(scored.meta);
-
-    let attempts = 1;
-
-    // One quiet retry for problems a rewrite can actually fix. Fabrication and
-    // duplication are not retried — the model has already shown what it will
-    // reach for, and a second roll of the dice is not a correction.
-    if (verdict === VERDICT.WEAK && !scored.fabricationRisk && !scored.duplicatesAnotherBullet) {
-      onStage(`Bullet ${i + 1} scored ${scored.composite}% — trying a stronger version…`);
-      try {
-        const better = await api.refine({
-          bullet: b.text,
-          instruction:
-            'Make this stronger: lead with a specific action and state what changed as a result. ' +
-            'Use only facts already present in the source documents.',
-          resumeText: session.resumeText,
-          experienceText: session.experienceText,
-          otherBullets: bullets.filter((x) => x.id !== b.id).map((x) => x.text),
-        });
-        track(better.meta);
-
-        if (!better.refused) {
-          const recheck = await scoreBullet({
-            bullet: { ...b, text: better.text },
-            section: { request },
-            session,
-          });
-          track(recheck.scored.meta);
-          attempts = 2;
-          // Keep the retry only if it actually improved.
-          if (recheck.scored.composite > scored.composite) {
-            b.text = better.text;
-            b.claimsUsed = better.claimsUsed;
-            b.format = better.format;
-            ({ scored, verdict, note } = recheck);
-          }
-        }
-      } catch {
-        // A failed refinement is not fatal; keep the original draft.
-      }
+    if (res.refused) {
+      return {
+        ...point,
+        state: POINT.REFUSED,
+        note: `Declined: ${res.refused}`,
+        usage: { calls: 1, inputTokens: 0, outputTokens: 0 },
+      };
     }
 
-    bullets[i] = {
-      ...b,
-      checking: false,
-      verdict,
-      note,
-      score: scored.composite,
-      scores: scored.scores,
-      attempts,
-      dropped: verdict === VERDICT.REFUSED,
+    return {
+      ...point,
+      state: POINT.IMPROVED,
+      note: null,
+      rewrite: res.text,
+      claimsUsed: res.claimsUsed,
+      attempts: (point.attempts ?? 1) + 1,
+      history: [...(point.history ?? []), res.text],
+      usage: { calls: 1, inputTokens: 0, outputTokens: 0 },
     };
-    onBullets([...bullets]);
   }
 
-  return { section, bullets, usage };
-}
+  const res = await optimizeBullet(
+    {
+      bullet: { id: point.id, text: point.text },
+      targetCompetency: targetCompetency ?? inferCompetency(analysis, point) ?? 'EXECUTION',
+      resumeText: session.resumeText,
+      experienceText: session.experienceText,
+      gapIds,
+      otherBullets: siblingClaims(analysis, point.text),
+    },
+    {
+      rewriteFn: (args) =>
+        api.rewrite({
+          ...args,
+          // Force a different angle on regeneration.
+          attempt: Math.max(args.attempt, avoid.length ? 1 : 0),
+          previousAttempts: [...avoid, ...args.previousAttempts],
+        }),
+      scoreFn: api.score,
+    }
+  );
 
-/** Apply a user instruction to one bullet, then re-check it. */
-export async function refineBullet(session, { bullet, instruction, siblings = [] }) {
-  const res = await api.refine({
-    bullet: bullet.text,
-    instruction,
-    resumeText: session.resumeText,
-    experienceText: session.experienceText,
-    otherBullets: siblings.filter((t) => t !== bullet.text),
-  });
-
-  if (res.refused) {
-    // The agent declined rather than inventing. Surface it verbatim — this is
-    // the moment the product's promise is most visible to the user.
-    return { refused: res.refused, bullet, usage: res.meta.usage };
-  }
-
-  const next = { ...bullet, text: res.text, claimsUsed: res.claimsUsed, format: res.format };
-  const { scored, verdict, note } = await scoreBullet({
-    bullet: next,
-    section: { request: '' },
-    session,
-  });
+  const { state, note } = explain(res);
 
   return {
-    refused: null,
-    bullet: {
-      ...next,
-      verdict,
-      note,
-      score: scored.composite,
-      scores: scored.scores,
-      attempts: (bullet.attempts ?? 1) + 1,
-      dropped: verdict === VERDICT.REFUSED,
-    },
-    usage: { calls: 2 },
+    ...point,
+    state,
+    note,
+    rewrite: res.best?.rewrite ?? null,
+    score: res.best?.composite ?? null,
+    scores: res.best?.scores ?? null,
+    claimsUsed: res.best?.claimsUsed ?? [],
+    attempts: res.attempts.length,
+    history: [...(point.history ?? []), ...(res.best ? [res.best.rewrite] : [])],
+    usage: res.usage,
   };
+}
+
+/** Best guess at what a point should demonstrate, from the earlier analysis. */
+function inferCompetency(analysis, point) {
+  const match = (analysis?.resumeBullets ?? []).find((b) => b.text === point.text);
+  return match?.potentialCompetency ?? match?.competency;
+}
+
+/**
+ * Rewrite every point in a section, reporting each as it lands so the user
+ * watches progress rather than waiting on the whole section.
+ */
+export async function rewriteSection(session, section, { onPoint = () => {} } = {}) {
+  const usage = { calls: 0, inputTokens: 0, outputTokens: 0 };
+  const points = section.points.map((p) => ({ ...p, state: POINT.PENDING }));
+  onPoint([...points]);
+
+  for (let i = 0; i < points.length; i++) {
+    points[i] = { ...points[i], state: POINT.WORKING };
+    onPoint([...points]);
+
+    try {
+      const done = await rewritePoint(session, { point: points[i] });
+      usage.calls += done.usage.calls;
+      usage.inputTokens += done.usage.inputTokens;
+      usage.outputTokens += done.usage.outputTokens;
+      points[i] = done;
+    } catch (e) {
+      points[i] = { ...points[i], state: POINT.UNCHANGED, note: `Failed: ${e.message}` };
+    }
+    onPoint([...points]);
+  }
+
+  return { points, usage };
 }
