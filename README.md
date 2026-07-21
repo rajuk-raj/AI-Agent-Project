@@ -109,6 +109,14 @@ npm test                       # no API key needed, no cost
 
 `MAX_BULLETS=0` processes a whole resume; it defaults to 4 to keep exploratory runs cheap.
 
+### Deploying
+
+Vercel, zero-config: it detects Vite, builds to `dist/`, and turns each `api/*.js` into a serverless function. Helpers are underscore-prefixed (`_llm.js`, `_prompts.js`, `_search.js`) so they're bundled but never routed.
+
+Set `OPENAI_API_KEY` — and `SERPER_API_KEY` if you want JD search — in the project's environment variables. Never in a file; the key is read only inside `/api` and must not reach the browser.
+
+`vercel.json` raises the function timeout to 60s. The default is 10s, and `decompose`, `sections`, and `map-competency` each budget 16k output tokens — measured at ~9s on a *small* resume, so the default fails in production on anything realistic while working locally.
+
 ### Configuration
 
 Models are set per tool in `.env.local`, so cost and quality can be tuned per step without code changes:
