@@ -2,8 +2,8 @@
  * Client-side wrapper for the /api routes.
  *
  * Each route is one LLM call, which keeps every serverless invocation well
- * inside the free-tier function timeout. Sequencing and retries live in the
- * orchestrator, not here.
+ * inside the free-tier function timeout. Sequencing and retries live in
+ * lib/workspace.js and shared/optimizeLoop.js, not here.
  */
 
 class ApiError extends Error {
