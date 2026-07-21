@@ -19,7 +19,7 @@ import {
   missingTerms,
   JD_MATCH_TARGET,
 } from '../../shared/jdMatch.js';
-import { reorderByJd } from '../../shared/listTailor.js';
+import { reorderByJd, matchListToJd } from '../../shared/listTailor.js';
 
 export const POINT = {
   PENDING: 'pending',
@@ -39,14 +39,31 @@ export const POINT = {
  * a skill the candidate never claimed. Reordering is the honest improvement,
  * and code can guarantee the items are unchanged.
  */
-function tailorListPoint(point, jdIndex) {
+function tailorListPoint(point, jdIndex, analysis) {
   const res = jdIndex ? reorderByJd(point.text, jdIndex) : null;
+  // Scored against the things the posting names, not against prose overlap —
+  // a list of eleven tools has no sentence to overlap with.
+  const listMatch = jdIndex ? matchListToJd(point.text, jdIndex) : null;
+
+  // Two different facts, kept apart. `missing` is what THIS list lacks, and it
+  // is what the headline count is out of. `missingAnywhere` is the real gap —
+  // scoped to one section, the panel told a candidate they don't list SQL
+  // while SQL sat in their Technical Skills line two boxes away.
+  if (listMatch) {
+    const everyList = (analysis?.sections ?? [])
+      .filter((s) => s.kind === 'list')
+      .flatMap((s) => s.points.map((p) => p.text))
+      .join(', ');
+    const elsewhere = new Set(matchListToJd(everyList, jdIndex)?.have ?? []);
+    listMatch.missingAnywhere = listMatch.missing.filter((m) => !elsewhere.has(m));
+  }
 
   if (!res) {
     return withMatch(
       {
         ...point,
         state: POINT.UNCHANGED,
+        listMatch,
         note: jdIndex
           ? 'Nothing to reorder here.'
           : 'Add a job description and I’ll lead this list with what that role asks for.',
@@ -62,6 +79,7 @@ function tailorListPoint(point, jdIndex) {
       state: res.changed ? POINT.REORDERED : POINT.UNCHANGED,
       rewrite: res.changed ? res.text : null,
       matchedItems: res.matched,
+      listMatch,
       note: res.changed
         ? `Moved ${res.matched.length} item(s) this posting asks for to the front. Nothing added or removed — a skills list is what gets probed in a screening call.`
         : res.matched.length
@@ -142,7 +160,16 @@ function withMatch(point, jdIndex) {
 function siblingClaims(analysis, excludeText) {
   return [
     ...(analysis?.resumeBullets ?? []).map((b) => b.text),
-    ...(analysis?.sections ?? []).flatMap((s) => s.points.map((p) => p.text)),
+    // RESUME sections only. Experience notes are source material, not rival
+    // bullets: they exist precisely so a thin resume line can borrow the
+    // detail behind it. Including them told the rewriter that the candidate's
+    // own notes belonged to someone else, so "Ran weekly experiments on the
+    // signup funnel" was refused the "34% to 52%" sitting in the notes about
+    // that exact work — DUPLICATES_EXISTING firing on the one source it is
+    // supposed to use.
+    ...(analysis?.sections ?? [])
+      .filter((s) => s.source === 'resume')
+      .flatMap((s) => s.points.map((p) => p.text)),
   ].filter((t) => t && t !== excludeText);
 }
 
@@ -161,7 +188,7 @@ export async function rewritePoint(
 
   // A roster is reordered, never rewritten. A user instruction still goes to
   // the refiner — that is an explicit request, and it can refuse.
-  if (kind === 'list' && !instruction) return tailorListPoint(point, jdIndex);
+  if (kind === 'list' && !instruction) return tailorListPoint(point, jdIndex, analysis);
 
   // A user instruction is a different job from a blind retry: apply exactly
   // what they asked, and refuse if it can't be done without inventing a fact.

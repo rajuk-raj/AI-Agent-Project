@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { POINT } from '../lib/workspace.js';
+import { matchBand } from '../../shared/jdMatch.js';
 
 const BADGE = {
   [POINT.PENDING]: { text: 'waiting', cls: 'bg-slate-100 text-slate-500' },
@@ -12,10 +13,14 @@ const BADGE = {
 };
 
 /** Colour the match by band, so a weak number reads as weak at a glance. */
+const TONE = {
+  strong: 'text-emerald-700',
+  partial: 'text-amber-700',
+  weak: 'text-slate-500',
+};
+
 function matchTone(percent) {
-  if (percent >= 65) return 'text-emerald-700';
-  if (percent >= 35) return 'text-amber-700';
-  return 'text-slate-500';
+  return TONE[matchBand(percent)?.id] ?? TONE.weak;
 }
 
 /**
@@ -25,10 +30,26 @@ function matchTone(percent) {
  * with the requirement this line best answers, which is a real, checkable
  * thing — and the "working" panel names that requirement.
  */
-function MatchBar({ before, after }) {
+function MatchBar({ before, after, listMatch }) {
+  // A roster is scored against the things the posting names, not against prose
+  // overlap — different question, so it says which question it answered.
+  if (listMatch) {
+    const band = matchBand(listMatch.percent);
+    return (
+      <div className="flex items-baseline gap-2 text-[11px]">
+        <span className="uppercase tracking-wide text-slate-400">Posting’s tools</span>
+        <span className={`font-semibold tabular-nums ${matchTone(listMatch.percent)}`}>
+          {listMatch.have.length} of {listMatch.have.length + listMatch.missing.length}
+        </span>
+        <span className={matchTone(listMatch.percent)}>· {band.label}</span>
+      </div>
+    );
+  }
+
   if (!before && !after) return null;
   const now = after ?? before;
   const moved = before && after && after.percent !== before.percent;
+  const band = matchBand(now.percent);
 
   return (
     <div className="flex items-baseline gap-2 text-[11px]">
@@ -40,6 +61,11 @@ function MatchBar({ before, after }) {
         </>
       )}
       <span className={`font-semibold tabular-nums ${matchTone(now.percent)}`}>{now.percent}%</span>
+      {/* The band is what the number means; the number stays for movement. */}
+      <span className={matchTone(now.percent)}>· {band.label}</span>
+      {moved && after.percent > before.percent && (
+        <span className="text-emerald-700">+{after.percent - before.percent}</span>
+      )}
     </div>
   );
 }
@@ -69,7 +95,11 @@ export default function PointCard({ point, index, busy, onRegenerate, onEdit }) 
       <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-4 py-2">
         <div className="flex items-baseline gap-3">
           <span className="text-xs font-medium text-slate-500">Point {index + 1}</span>
-          <MatchBar before={point.originalMatch} after={point.match} />
+          <MatchBar
+            before={point.originalMatch}
+            after={point.match}
+            listMatch={point.listMatch}
+          />
         </div>
         <span className={`rounded px-2 py-0.5 text-[11px] font-medium ${badge.cls}`}>
           {badge.text}
@@ -166,6 +196,7 @@ export default function PointCard({ point, index, busy, onRegenerate, onEdit }) 
             )}
             {(point.score != null ||
               point.match ||
+              point.listMatch ||
               point.rejectedDraft ||
               point.claimsUsed?.length > 0) && (
               <button
@@ -215,6 +246,23 @@ export default function PointCard({ point, index, busy, onRegenerate, onEdit }) 
                 competency {point.scores.competency} · STAR {point.scores.star} · specificity{' '}
                 {point.scores.specificity} · format {point.scores.format}
               </p>
+            )}
+            {point.listMatch && (
+              <div>
+                <p className="text-slate-400">
+                  things this posting names that you list ({point.listMatch.percent}%):
+                </p>
+                <p className="ml-3">{point.listMatch.have.join(', ') || 'none'}</p>
+                {point.listMatch.missingAnywhere?.length > 0 && (
+                  <>
+                    <p className="mt-1 text-slate-400">
+                      it names these, and they’re nowhere on your resume — add any you genuinely
+                      have:
+                    </p>
+                    <p className="ml-3">{point.listMatch.missingAnywhere.join(', ')}</p>
+                  </>
+                )}
+              </div>
             )}
             {point.match?.best && (
               <div>

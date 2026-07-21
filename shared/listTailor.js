@@ -17,6 +17,78 @@
 import { terms } from './jdMatch.js';
 
 /**
+ * Does one list item name the same thing as one JD phrase?
+ *
+ * Containment both ways, so "Advanced Excel" answers a posting asking for
+ * "Excel" and a list entry of "SQL" answers "strong SQL skills". Requiring an
+ * exact string match would miss most real pairs; requiring a single shared
+ * word would match "Advanced Excel" to "advanced analytics".
+ */
+function sameThing(itemTerms, phraseTerms) {
+  if (!itemTerms.length || !phraseTerms.length) return false;
+  const inItem = phraseTerms.every((t) => itemTerms.includes(t));
+  const inPhrase = itemTerms.every((t) => phraseTerms.includes(t));
+  return inItem || inPhrase;
+}
+
+/**
+ * Score a roster against the specific things the posting names.
+ *
+ * A skills line scored the ordinary way — term overlap with the requirement it
+ * best answers — produces a number that means nothing: a list of eleven tools
+ * has no prose to overlap with. The question a candidate actually has is "how
+ * many of the tools this job names do I have?", so that is what this measures,
+ * and the denominator is the posting's own vocabulary.
+ *
+ * `missing` is reported so the gap is visible. It is never auto-added: whether
+ * the candidate knows a tool is a fact only they have.
+ *
+ * @returns {{percent:number, have:string[], missing:string[]}|null}
+ */
+export function matchListToJd(text, index) {
+  if (!index?.keywords?.length) return null;
+  const { items } = splitList(text);
+  if (!items.length) return null;
+
+  const universe = namedThings(index.keywords);
+  if (!universe.length) return null;
+
+  const itemTermLists = items.map((i) => [...terms(i)]);
+
+  const have = [];
+  const missing = [];
+  for (const kw of universe) {
+    const kwTerms = [...kw.terms];
+    const hit = itemTermLists.some((it) => sameThing(it, kwTerms));
+    (hit ? have : missing).push(kw.text);
+  }
+
+  return {
+    percent: Math.round((have.length / universe.length) * 100),
+    have,
+    missing,
+  };
+}
+
+/**
+ * The keywords that name a thing you could list, as opposed to describe work.
+ *
+ * Without this filter the denominator is wrong in a way that reads as the
+ * candidate's fault. Measured on a real posting: a Tools line holding every
+ * tool the ad named scored "3 of 13 — weak fit", because the other ten
+ * keywords were phrases like "merchant activation" and "signup funnel" that
+ * belong in a bullet, not a tool list.
+ *
+ * Proper nouns and acronyms are the signal — Figma, JIRA, SQL, Advanced Excel.
+ * If nearly everything qualifies the posting is probably Title Cased, in which
+ * case the signal is absent and the full set is the honest denominator.
+ */
+function namedThings(keywords) {
+  const named = keywords.filter((k) => /(^|\s)[A-Z]/.test(k.text));
+  return named.length && named.length <= keywords.length * 0.7 ? named : keywords;
+}
+
+/**
  * Split a list line into its items.
  *
  * Handles "Technical Skills: SQL, Python, Linux" and bare "SQL, Python · Linux"

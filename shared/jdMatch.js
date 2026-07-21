@@ -169,6 +169,26 @@ export function matchBullet(bulletText, index) {
 export const JD_MATCH_TARGET = 90;
 
 /**
+ * The percentage, said in words.
+ *
+ * A raw number invites a reading it can't support: 42% looks like a failing
+ * grade when it is a normal score for a good bullet, because term overlap with
+ * a verbose requirement sentence tops out well below 100. Measured: a bullet
+ * ideally suited to a posting scored 25%. The band is what the number actually
+ * means; the percentage stays visible beside it so movement is still legible.
+ */
+export const MATCH_BANDS = [
+  { id: 'strong', min: 60, label: 'strong fit' },
+  { id: 'partial', min: 30, label: 'partial fit' },
+  { id: 'weak', min: 0, label: 'weak fit' },
+];
+
+export function matchBand(percent) {
+  if (percent == null) return null;
+  return MATCH_BANDS.find((b) => percent >= b.min) ?? MATCH_BANDS[MATCH_BANDS.length - 1];
+}
+
+/**
  * The posting's words this bullet is closest to using but doesn't.
  *
  * Fed back into a retry so the rewriter can reach for the posting's own

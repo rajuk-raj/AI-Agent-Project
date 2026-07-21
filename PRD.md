@@ -4,6 +4,22 @@
 **Supersedes:** `Resume_Bullet_Optimizer_Agent_Plan.docx` (architecture doc — carried forward where noted)
 **Repo:** https://github.com/rajuk-raj/AI-Agent-Project
 
+## Changelog — v1.6 → v1.7 (bands, roster scoring, two guardrail bugs)
+
+**Every match now carries a band beside the percentage** — *strong fit* ≥60, *partial fit* ≥30, *weak fit* below — plus the point gain when a rewrite improves on the original. The percentage alone was being read as a school grade: 42% on a good line looks like failure, when term overlap with verbose requirement sentences simply tops out low.
+
+**Rosters are scored against the things the posting names**, not against prose overlap — a list of eleven tools has no sentence to overlap with. The card reads "3 of 5 · strong fit", and the working panel names which ones and what is missing.
+
+The denominator excludes prose keywords. Measured: a Tools line holding *every* tool the posting named scored "3 of 13 — weak fit", because the other ten keywords were phrases like "merchant activation" that belong in a bullet, not a tool list. Proper nouns and acronyms are the filter, with a fallback for Title Cased postings where capitalisation carries no signal. Gaps are computed resume-wide — scoped to one section, the panel told a candidate they don't list SQL while SQL sat in their Technical Skills line two boxes away.
+
+**Bug: experience notes were treated as rival bullets.** `siblingClaims` fed every note into the rewriter as an achievement belonging to another point. So "Ran weekly experiments on the signup funnel" was refused the "34% to 52%" from the note about that exact work — `DUPLICATES_EXISTING` firing on the one source the rewrite was supposed to draw from, which defeats the experience doc's entire purpose (§4.1 note 6). Only resume content counts as claimed elsewhere.
+
+**Bug: sections were mis-filed with no notes supplied.** The model tagged a job `source: "experience"` on an empty notes field, filing it under a tab the user had no reason to open. Forced in code.
+
+**Open — the self-scorer is rejecting sound rewrites.** In a live run, two of two well-grounded drafts were refused: *"Built merchant activation dashboards in Mixpanel, reducing reporting time from 2 days to 2 hours"* was called a duplicate of a bullet it shares nothing with, and a correct funnel rewrite was flagged as fabricating a phrase it did not contain. Both are supported verbatim by the notes.
+
+This is exactly the failure §8 exists to quantify, and it cannot be fixed by adjusting prompts on a hunch — the reason codes are wrong, not just strict, and guessing at them risks trading a false reject for a false accept, which is far worse. **`eval/labels.csv` is still unlabelled.** Until it isn't, nothing measures how often the grader is right.
+
 ## Changelog — v1.5 → v1.6 (every section reachable)
 
 **Sections were being silently dropped.** The extraction prompt said to skip "a bare skills list" and education without accomplishments, so a resume's Skills & Tools block never appeared and could not be found by search. A heading the user cannot reach is a part of their resume the product refuses to touch without saying so. The rule is now: index everything except contact details.

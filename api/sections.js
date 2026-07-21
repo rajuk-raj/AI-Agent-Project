@@ -28,7 +28,10 @@ export async function extractSections({ resumeText, experienceText = '' }) {
     .map((s, i) => ({
       id: `sec${i}`,
       heading: s.heading.trim(),
-      source: s.source,
+      // With no notes supplied there is only one document it can have come
+      // from. The model tagged a job "experience" on an empty notes field,
+      // which filed it under a tab the user had no reason to open.
+      source: experienceText.trim() ? s.source : 'resume',
       parentHeading: s.parentHeading?.trim() || null,
       kind: s.kind === 'list' ? 'list' : 'achievements',
       context: s.context,
