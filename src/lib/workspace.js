@@ -19,6 +19,7 @@ import {
   missingTerms,
   JD_MATCH_TARGET,
 } from '../../shared/jdMatch.js';
+import { reorderByJd } from '../../shared/listTailor.js';
 
 export const POINT = {
   PENDING: 'pending',
@@ -27,7 +28,50 @@ export const POINT = {
   NEEDS_DATA: 'needs_data',
   REFUSED: 'refused',
   UNCHANGED: 'unchanged',
+  REORDERED: 'reordered',
 };
+
+/**
+ * Tailor a roster section — skills, tools, languages.
+ *
+ * No model call. A list has no action and no result to rewrite, and asking a
+ * model to "tailor my skills to this job" is the one prompt most likely to add
+ * a skill the candidate never claimed. Reordering is the honest improvement,
+ * and code can guarantee the items are unchanged.
+ */
+function tailorListPoint(point, jdIndex) {
+  const res = jdIndex ? reorderByJd(point.text, jdIndex) : null;
+
+  if (!res) {
+    return withMatch(
+      {
+        ...point,
+        state: POINT.UNCHANGED,
+        note: jdIndex
+          ? 'Nothing to reorder here.'
+          : 'Add a job description and I’ll lead this list with what that role asks for.',
+        usage: { calls: 0, inputTokens: 0, outputTokens: 0 },
+      },
+      jdIndex
+    );
+  }
+
+  return withMatch(
+    {
+      ...point,
+      state: res.changed ? POINT.REORDERED : POINT.UNCHANGED,
+      rewrite: res.changed ? res.text : null,
+      matchedItems: res.matched,
+      note: res.changed
+        ? `Moved ${res.matched.length} item(s) this posting asks for to the front. Nothing added or removed — a skills list is what gets probed in a screening call.`
+        : res.matched.length
+        ? 'Already leads with what this posting asks for.'
+        : 'Nothing in this list matches the posting. Left exactly as written.',
+      usage: { calls: 0, inputTokens: 0, outputTokens: 0 },
+    },
+    jdIndex
+  );
+}
 
 /** Plain-language explanation of what happened to a point. */
 function explain(res) {
@@ -107,10 +151,17 @@ function siblingClaims(analysis, excludeText) {
  * regeneration — `avoid` carries versions the user already rejected, so a
  * regenerate genuinely changes angle instead of returning the same sentence.
  */
-export async function rewritePoint(session, { point, targetCompetency, avoid = [], instruction }) {
+export async function rewritePoint(
+  session,
+  { point, targetCompetency, avoid = [], instruction, kind = 'achievements' }
+) {
   const analysis = session.analysis;
   const gapIds = analysis?.coverage?.gapIds ?? [];
   const jdIndex = indexJd(session.jd?.jd);
+
+  // A roster is reordered, never rewritten. A user instruction still goes to
+  // the refiner — that is an explicit request, and it can refuse.
+  if (kind === 'list' && !instruction) return tailorListPoint(point, jdIndex);
 
   // A user instruction is a different job from a blind retry: apply exactly
   // what they asked, and refuse if it can't be done without inventing a fact.
@@ -242,7 +293,7 @@ export async function rewriteSection(session, section, { onPoint = () => {} } = 
     onPoint([...points]);
 
     try {
-      const done = await rewritePoint(session, { point: points[i] });
+      const done = await rewritePoint(session, { point: points[i], kind: section.kind });
       usage.calls += done.usage.calls;
       usage.inputTokens += done.usage.inputTokens;
       usage.outputTokens += done.usage.outputTokens;

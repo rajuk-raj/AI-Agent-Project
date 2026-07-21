@@ -8,6 +8,7 @@ const BADGE = {
   [POINT.NEEDS_DATA]: { text: 'needs a number from you', cls: 'bg-amber-50 text-amber-800' },
   [POINT.REFUSED]: { text: 'left as-is', cls: 'bg-red-50 text-red-800' },
   [POINT.UNCHANGED]: { text: 'left as-is', cls: 'bg-slate-100 text-slate-600' },
+  [POINT.REORDERED]: { text: 'reordered', cls: 'bg-emerald-50 text-emerald-800' },
 };
 
 /** Colour the match by band, so a weak number reads as weak at a glance. */
@@ -94,7 +95,11 @@ export default function PointCard({ point, index, busy, onRegenerate, onEdit }) 
           <div>
             <div className="flex items-baseline justify-between">
               <p className="text-[11px] font-medium uppercase tracking-wide text-emerald-700">
-                {point.match ? 'Final line — tailored to the JD' : 'Final line'}
+                {point.state === POINT.REORDERED
+                  ? 'Reordered for this posting — same items'
+                  : point.match
+                  ? 'Final line — tailored to the JD'
+                  : 'Final line'}
               </p>
               {point.score != null && (
                 // Named, because it sits beside the JD match and the two

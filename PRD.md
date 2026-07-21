@@ -4,6 +4,16 @@
 **Supersedes:** `Resume_Bullet_Optimizer_Agent_Plan.docx` (architecture doc — carried forward where noted)
 **Repo:** https://github.com/rajuk-raj/AI-Agent-Project
 
+## Changelog — v1.5 → v1.6 (every section reachable)
+
+**Sections were being silently dropped.** The extraction prompt said to skip "a bare skills list" and education without accomplishments, so a resume's Skills & Tools block never appeared and could not be found by search. A heading the user cannot reach is a part of their resume the product refuses to touch without saying so. The rule is now: index everything except contact details.
+
+**Nested headings are preserved.** `parentHeading` on each section, so "Certification & Training" holding two programmes reads the way it does on the page instead of as two unrelated entries. Bold inline labels — `Technical Skills:`, `Tools:` — become sections in their own right under their parent.
+
+**Rosters are reordered, not rewritten** (`kind: 'list'`). A skills line has no action and no result, so there is nothing for the STAR rewriter to do with it; asking a model to "tailor my skills to this job" is the single prompt most likely to add a skill the candidate never claimed, and a skills list is exactly what gets probed in a screening call.
+
+So `shared/listTailor.js` does it in code: split the list, move the items the posting asks for to the front, keep relative order otherwise, and verify the output is a permutation of the input before returning. Reordering cannot invent. It also costs no API call — measured on an 11-item Tools line, Figma / JIRA / Mixpanel moved to the front for zero tokens.
+
 ## Changelog — v1.4 → v1.5 (STAR in the schema, JD chased not guaranteed)
 
 **STAR moved from the prompt into the schema.** The rewriter must now return `star.situationTask`, `star.action`, and `star.result`, quoted from its own output, with `result` nullable. Same lesson as §13's other three constraints: stating STAR as a rule produced bullets the model *called* STAR, while requiring the parts makes a missing Result a fact the code can act on. The UI now says plainly when Situation and Action are present but the documents state no outcome.

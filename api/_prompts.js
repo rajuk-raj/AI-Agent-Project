@@ -542,6 +542,23 @@ export const SECTIONS_SCHEMA = {
               'or "Onboarding project". Use the document\'s own wording.',
           },
           source: { type: 'string', enum: ['resume', 'experience'] },
+          // Nested headings are the norm on a real resume — "Certification &
+          // Training" over two programmes, "Experience" over three jobs. One
+          // section per sub-heading, with the parent recorded so the picker can
+          // group them instead of flattening the document's structure away.
+          parentHeading: {
+            type: ['string', 'null'],
+            description: 'The heading this one sits under, verbatim. Null if it is top-level.',
+          },
+          // A roster of items cannot be rewritten into STAR — there is no
+          // action and no result in "SQL, Python, Linux". Tagging it here lets
+          // the workspace tailor it by reordering rather than by rewriting.
+          kind: {
+            type: 'string',
+            enum: ['achievements', 'list'],
+            description:
+              'list: a roster of items (skills, tools, languages). achievements: claims about work.',
+          },
           context: {
             type: ['string', 'null'],
             description: 'Dates, company, or role if stated alongside the heading. Null if absent.',
@@ -554,7 +571,7 @@ export const SECTIONS_SCHEMA = {
             items: { type: 'string' },
           },
         },
-        required: ['heading', 'source', 'context', 'points'],
+        required: ['heading', 'source', 'parentHeading', 'kind', 'context', 'points'],
         additionalProperties: false,
       },
     },
@@ -569,7 +586,10 @@ Rules:
 - Copy every point VERBATIM. You are indexing, not editing. The user will be shown their original text beside the rewrite, so an "improved" original makes the comparison meaningless.
 - A section is a heading plus the points beneath it: a job, a project, a themed group of notes.
 - Include sections from BOTH the resume and the experience notes. Experience notes are often loose prose - split them into discrete points at natural claim boundaries, still verbatim.
-- Skip sections with nothing to rewrite: contact details, a bare skills list, education with no accomplishments.
+- MISS NOTHING. Every heading in the document gets a section. If a heading contains sub-headings - "Certification & Training" holding two programmes, "Experience" holding three jobs - emit one section per SUB-heading and set parentHeading to the one above it. The user navigates by these; a heading you drop is a part of their resume they cannot reach.
+- A bold inline label followed by a list - "Technical Skills: SQL, Python, Linux" or "Tools: Figma, Notion, JIRA" - is its own section. Its heading is the label; it holds ONE point, the list copied verbatim; set kind to "list"; and set parentHeading to the heading it sits under ("Skills & Tools").
+- Set kind to "list" for anything that is a roster of items rather than claims about work: skills, tools, languages, interests. Everything else is "achievements".
+- The ONLY thing to leave out is contact details - a phone number and an email address have nothing to work on. Skills lists, certifications, education, and awards all belong in.
 - If a document has no clear headings, group by employer, project, or topic and name the group using the document's own words.`;
 
 export function sectionsPrompt({ resumeText, experienceText }) {

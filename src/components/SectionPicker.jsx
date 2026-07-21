@@ -29,6 +29,15 @@ export default function SectionPicker({ analysis, worked = {}, source, onPick, o
   // component, so only one group renders at a time.
   const shown = all.filter((s) => s.source === source);
 
+  // Group by the heading each section sits under, so "Certification &
+  // Training" holding two programmes reads the way it does on the resume
+  // rather than as two unrelated entries.
+  const groups = shown.reduce((acc, s) => {
+    const key = s.parentHeading ?? '';
+    (acc[key] ??= []).push(s);
+    return acc;
+  }, {});
+
   const Group = ({ sections, hint }) =>
     sections.length === 0 ? null : (
       <div>
@@ -43,7 +52,14 @@ export default function SectionPicker({ analysis, worked = {}, source, onPick, o
                 className="card w-full p-4 text-left transition hover:border-slate-400"
               >
                 <div className="flex items-baseline justify-between gap-3">
-                  <span className="text-sm font-medium text-slate-900">{s.heading}</span>
+                  <span className="text-sm font-medium text-slate-900">
+                    {s.heading}
+                    {s.kind === 'list' && (
+                      <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-normal text-slate-500">
+                        list
+                      </span>
+                    )}
+                  </span>
                   <span className="shrink-0 text-xs text-slate-400">
                     {done ? `${done} improved` : `${s.points.length} point${s.points.length > 1 ? 's' : ''}`}
                   </span>
@@ -78,14 +94,25 @@ export default function SectionPicker({ analysis, worked = {}, source, onPick, o
         )}
       </div>
 
-      <Group
-        sections={shown}
-        hint={
-          source === 'resume'
-            ? 'Points already on your resume — rewritten in place.'
-            : 'Work you’ve written down but not yet put on your resume.'
-        }
-      />
+      {Object.entries(groups).map(([parent, sections]) => (
+        <div key={parent || '_top'} className="space-y-2">
+          {parent && (
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              {parent}
+            </h3>
+          )}
+          <Group
+            sections={sections}
+            hint={
+              parent
+                ? ''
+                : source === 'resume'
+                ? 'Points already on your resume — rewritten in place.'
+                : 'Work you’ve written down but not yet put on your resume.'
+            }
+          />
+        </div>
+      ))}
 
       {shown.length === 0 && (
         <p className="card p-4 text-xs text-slate-500">

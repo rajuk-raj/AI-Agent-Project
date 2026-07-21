@@ -29,6 +29,8 @@ export async function extractSections({ resumeText, experienceText = '' }) {
       id: `sec${i}`,
       heading: s.heading.trim(),
       source: s.source,
+      parentHeading: s.parentHeading?.trim() || null,
+      kind: s.kind === 'list' ? 'list' : 'achievements',
       context: s.context,
       points: s.points.map((p, j) => ({ id: `sec${i}p${j}`, text: p.trim() })),
     }));
