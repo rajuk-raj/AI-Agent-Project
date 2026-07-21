@@ -190,8 +190,35 @@ export const REWRITE_SCHEMA = {
       type: 'string',
       description: 'One sentence explaining what changed and why. Shown to the user.',
     },
+    // STAR, decomposed and declared. Stating it as a prompt rule produced
+    // bullets the model *called* STAR; making it a required field forces the
+    // parts to be pointed at, and makes a missing Result a fact the code can
+    // act on rather than a judgement the model can wave through.
+    star: {
+      type: 'object',
+      description: 'The STAR parts of your rewrite, quoted from the rewrite itself.',
+      properties: {
+        situationTask: {
+          type: 'string',
+          description: 'The context or problem, as it appears in the rewrite.',
+        },
+        action: {
+          type: 'string',
+          description: 'What the candidate did, as it appears in the rewrite.',
+        },
+        result: {
+          type: ['string', 'null'],
+          description:
+            'The outcome, as it appears in the rewrite. NULL if the source documents state no ' +
+            'outcome for this work. Null is the correct answer when the data is absent — ' +
+            'inventing a result here is the worst failure available to you.',
+        },
+      },
+      required: ['situationTask', 'action', 'result'],
+      additionalProperties: false,
+    },
   },
-  required: ['rewrite', 'claimsUsed', 'rationale'],
+  required: ['rewrite', 'claimsUsed', 'rationale', 'star'],
   additionalProperties: false,
 };
 
@@ -219,6 +246,7 @@ export function rewritePrompt({
   isGapCompetency = false,
   otherBullets = [],
   jd = null,
+  jdFocus = null,
 }) {
   const parts = [
     `<original_bullet>\n${bullet.text}\n</original_bullet>`,
@@ -252,6 +280,30 @@ export function rewritePrompt({
         `The job description is NOT evidence about the candidate. Nothing in it may become a ` +
         `claim in the bullet. If the posting asks for something the candidate's documents do not ` +
         `show, the bullet must not imply they have it.`
+    );
+  }
+
+  if (jdFocus?.requirement) {
+    /**
+     * Second pass at a bullet that was already accurate but distant from the
+     * posting. Naming the requirement it came closest to, and the words it
+     * didn't use, lets the rewriter close a real gap in vocabulary.
+     *
+     * The refusal instruction is the load-bearing half. Without it this is a
+     * keyword-stuffing prompt, and the guardrail behind it is structural: the
+     * scorer that checks for fabrication never sees the job description, so a
+     * claim borrowed from the posting to hit these words is caught as an
+     * unsupported claim like any other.
+     */
+    parts.push(
+      `<closest_requirement>\n${jdFocus.requirement}\n</closest_requirement>`,
+      `Your previous version was accurate but used little of this requirement's language. ` +
+        `Words from it you have not used: ${jdFocus.missing.join(', ')}.\n\n` +
+        `Use only the ones that truthfully describe what the candidate actually did. ` +
+        `Do NOT work in a word by implying work they have no evidence of, and do not pad the ` +
+        `bullet with terms to hit them — a stuffed bullet reads as obviously written for a ` +
+        `keyword filter, and a recruiter discards it. If none of these words honestly apply, ` +
+        `return your previous version unchanged. That is a correct answer, not a failure.`
     );
   }
 

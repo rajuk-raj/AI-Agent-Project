@@ -12,7 +12,13 @@
 import * as api from './api.js';
 import { optimizeBullet, OUTCOME } from '../../shared/optimizeLoop.js';
 import { REASON } from '../../shared/scoring.js';
-import { indexJd, matchBullet, coverJd } from '../../shared/jdMatch.js';
+import {
+  indexJd,
+  matchBullet,
+  coverJd,
+  missingTerms,
+  JD_MATCH_TARGET,
+} from '../../shared/jdMatch.js';
 
 export const POINT = {
   PENDING: 'pending',
@@ -152,8 +158,14 @@ export async function rewritePoint(session, { point, targetCompetency, avoid = [
       experienceText: session.experienceText,
       gapIds,
       otherBullets: siblingClaims(analysis, point.text),
+      // Aim every point at the posting, then report what was actually reached.
+      jdTarget: jdIndex ? JD_MATCH_TARGET : 0,
     },
     {
+      // Both are pure functions over the indexed JD: no call, no cost, so the
+      // loop can consult them on every attempt.
+      jdMatchFn: jdIndex ? (text) => matchBullet(text, jdIndex) : null,
+      jdFeedbackFn: jdIndex ? (text) => missingTerms(text, jdIndex) : null,
       rewriteFn: (args) =>
         api.rewrite({
           ...args,
@@ -170,12 +182,19 @@ export async function rewritePoint(session, { point, targetCompetency, avoid = [
   );
 
   const { state, note } = explain(res);
+  const accepted = res.outcome === OUTCOME.ACCEPTED;
 
   return withMatch({
     ...point,
     state,
     note,
-    rewrite: res.best?.rewrite ?? null,
+    // "Left as-is" has to mean the original stands. Presenting a rejected
+    // draft as the final line contradicted the badge beside it, and with a JD
+    // loaded it could show the match *dropping* — advertising a downgrade as
+    // the tailored version. The draft stays visible under "working".
+    rewrite: accepted ? res.best?.rewrite ?? null : null,
+    rejectedDraft: accepted ? null : res.best?.rewrite ?? null,
+    star: accepted ? res.best?.star ?? null : null,
     score: res.best?.composite ?? null,
     scores: res.best?.scores ?? null,
     claimsUsed: res.best?.claimsUsed ?? [],

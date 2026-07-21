@@ -21,6 +21,8 @@ export async function rewrite({
   otherBullets = [],
   // Lens only — never added to the documents the fabrication check trusts.
   jd = null,
+  // Set on a retry that is chasing the posting's vocabulary, not accuracy.
+  jdFocus = null,
 }) {
   if (!bullet?.text) throw new Error('bullet.text is required.');
   if (!resumeText?.trim()) throw new Error('resumeText is required — rewrites must be grounded in the source.');
@@ -44,6 +46,7 @@ export async function rewrite({
       isGapCompetency: gapIds.includes(targetCompetency),
       otherBullets,
       jd,
+      jdFocus,
     }),
     schema: REWRITE_SCHEMA,
     schemaName: 'bullet_rewrite',
@@ -54,6 +57,9 @@ export async function rewrite({
     rewrite: data.rewrite.trim(),
     claimsUsed: data.claimsUsed ?? [],
     rationale: data.rationale,
+    // A null result means the source states no outcome for this work — the
+    // UI says so rather than presenting a STAR bullet that has no R.
+    star: data.star ?? null,
     attempt,
     meta: { model, usage },
   };

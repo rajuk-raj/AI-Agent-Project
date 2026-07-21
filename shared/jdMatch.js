@@ -157,6 +157,39 @@ export function matchBullet(bulletText, index) {
 }
 
 /**
+ * What the loop aims for on each point.
+ *
+ * A goal, not a guarantee. Many postings ask for things no bullet can ever
+ * evidence — "4-7 years of experience", "based in Singapore" — and the only
+ * way to force every point over an arbitrary line is to stuff it with the
+ * posting's words, which §9 forbids and which makes the number meaningless.
+ * The loop tries to reach this honestly and reports the real figure when it
+ * can't.
+ */
+export const JD_MATCH_TARGET = 90;
+
+/**
+ * The posting's words this bullet is closest to using but doesn't.
+ *
+ * Fed back into a retry so the rewriter can reach for the posting's own
+ * vocabulary where the candidate's material genuinely supports it. The
+ * fabrication check never sees the JD, so anything the rewriter launders in
+ * to chase these terms is still caught as an unsupported claim.
+ */
+export function missingTerms(bulletText, index) {
+  const m = matchBullet(bulletText, index);
+  if (!m?.best) return null;
+
+  const line = index.lines.find((l) => l.text === m.best.text);
+  const hits = new Set(m.best.hits);
+  return {
+    requirement: m.best.text,
+    missing: [...line.terms].filter((t) => !hits.has(t)),
+    percent: m.percent,
+  };
+}
+
+/**
  * Share of the JD's requirements answered by at least one bullet in a set.
  *
  * Section-level headline: "this section speaks to 4 of the 9 things the posting

@@ -132,6 +132,16 @@ export default function PointCard({ point, index, busy, onRegenerate, onEdit }) 
           </div>
         )}
 
+        {/* The rewriter declares its STAR parts, so a missing R is a fact
+            rather than an impression. Saying so beats quietly shipping a
+            three-letter STAR bullet. */}
+        {hasRewrite && !working && point.star && !point.star.result && (
+          <p className="rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+            Situation and Action are there, but your documents state no result for this work — so
+            none was written. Add what changed to your experience notes and rephrase.
+          </p>
+        )}
+
         {point.note && (
           <p className="rounded bg-slate-50 px-3 py-2 text-xs text-slate-700">{point.note}</p>
         )}
@@ -149,7 +159,10 @@ export default function PointCard({ point, index, busy, onRegenerate, onEdit }) 
                 Edit
               </button>
             )}
-            {(point.score != null || point.match || point.claimsUsed?.length > 0) && (
+            {(point.score != null ||
+              point.match ||
+              point.rejectedDraft ||
+              point.claimsUsed?.length > 0) && (
               <button
                 className="btn-ghost ml-auto text-slate-400"
                 onClick={() => setShowWorking(!showWorking)}
@@ -219,6 +232,14 @@ export default function PointCard({ point, index, busy, onRegenerate, onEdit }) 
                 <ul className="ml-3 list-disc">
                   {point.claimsUsed.map((c, i) => <li key={i}>“{c}”</li>)}
                 </ul>
+              </div>
+            )}
+            {point.rejectedDraft && (
+              <div>
+                <p className="text-slate-400">
+                  best draft it produced, not used — see the reason above:
+                </p>
+                <p className="ml-3">“{point.rejectedDraft}”</p>
               </div>
             )}
             {point.history?.length > 1 && (

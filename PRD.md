@@ -4,6 +4,33 @@
 **Supersedes:** `Resume_Bullet_Optimizer_Agent_Plan.docx` (architecture doc — carried forward where noted)
 **Repo:** https://github.com/rajuk-raj/AI-Agent-Project
 
+## Changelog — v1.4 → v1.5 (STAR in the schema, JD chased not guaranteed)
+
+**STAR moved from the prompt into the schema.** The rewriter must now return `star.situationTask`, `star.action`, and `star.result`, quoted from its own output, with `result` nullable. Same lesson as §13's other three constraints: stating STAR as a rule produced bullets the model *called* STAR, while requiring the parts makes a missing Result a fact the code can act on. The UI now says plainly when Situation and Action are present but the documents state no outcome.
+
+**The loop aims each point at 90% JD match** (`JD_MATCH_TARGET`). When a rewrite is accurate but distant from the posting, it retries with the requirement it came closest to and the words it didn't use.
+
+**A guaranteed 90% was requested and is not implementable.** Three measurements, all on live runs:
+
+| Case | Result |
+|---|---|
+| Bullet ideally suited to the posting — "weekly experiments on the SME activation funnel, activation 28% → 41%" against a Growth PM ad | **25%**, and a targeted retry moved it 0 points |
+| KYC bullet chased across 4 attempts | JD match fell **25% → 13%**, and the rewrite traded "drop-off from 41% to 23%" for "enhance onboarding efficiency" |
+| Typical accepted rewrites | 60–80% where the posting's wording overlaps, far lower where it doesn't |
+
+The ceiling is structural. Requirements are verbose sentences ("6+ years of experience…", "Think in systems, love solving root problems") and a 150-character bullet cannot overlap most of their words while staying readable. Forcing every point over 90% means stuffing the posting's vocabulary into bullets, which §9 forbids, which recruiters discard on sight, and which turns the number into a measurement of itself. A metric optimised to a fixed target stops carrying information.
+
+So the target is an **aim with rails**, and the UI reports what was actually reached:
+
+- the chase stops as soon as an attempt fails to beat the previous best — one wasted call, not three
+- a higher JD match can never promote a rewrite the scorer rejected; only accepted attempts are eligible
+- a rewrite stating a real outcome always beats one that dropped it, whatever it scores on fit
+- an accept banked early survives a later attempt that fails
+
+**"Left as-is" now means the original stands.** Rejected drafts were being displayed under "FINAL LINE — TAILORED TO THE JD" beside a "left as-is" badge, and with a JD loaded that could advertise a *drop* in match as the tailored version. The draft moved to the working panel.
+
+**Open — the number's calibration.** A perfect bullet scoring 25% reads as a broken tool. The fix is presentation, not another rewrite pass: normalise against the best score that requirement can support, or show bands rather than a raw percentage. Not done here because it changes what every number on screen means.
+
 ## Changelog — v1.3 → v1.4 (JD-first workspace)
 
 The four inputs are now supplied together and up front: **resume, experience notes, job description, target level.** The JD moved from a panel inside the workspace to the setup screen, because it changes what every rewrite optimises for — collecting it after the analysis meant the first section was written against no target.

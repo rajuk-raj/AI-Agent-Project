@@ -35,6 +35,10 @@ Each point gets its own box: your original, the JD-tailored line, a match percen
 
 Deliberately **not** called an "ATS score." No applicant tracking system works this way, and the label should say what the number actually measures.
 
+The loop aims each point at 90% and reports what it actually reached. It is an aim, not a promise: measured on a live posting, a bullet ideally suited to the role — *"weekly experiments on the SME activation funnel, activation 28% → 41%"* — scores 25%, because job requirements are verbose sentences and a 150-character bullet cannot overlap most of their words while staying readable. Guaranteeing a floor would mean stuffing the posting's vocabulary into every line, which recruiters discard on sight and which makes the number a measurement of itself.
+
+The chase has rails, all of them tested: it stops as soon as it stops paying, it can never promote a rewrite the scorer rejected, and a version stating a real outcome always beats one that dropped it. That last rule exists because a chased rewrite once traded *"drop-off from 41% to 23%"* for *"enhance onboarding efficiency"* — better vocabulary, strictly worse bullet.
+
 ### The JD is a lens, not a source
 
 A job posting is full of appealing phrases — *"led cross-functional teams"*, *"drove 30% growth"* — that are claims about the **role**, not facts about you. So the JD reaches the rewriter, to decide which of your real accomplishments to lead with and in what vocabulary, and is kept out of the evidence the fabrication check reads.
