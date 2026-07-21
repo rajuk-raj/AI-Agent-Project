@@ -10,9 +10,42 @@ const BADGE = {
   [POINT.UNCHANGED]: { text: 'left as-is', cls: 'bg-slate-100 text-slate-600' },
 };
 
+/** Colour the match by band, so a weak number reads as weak at a glance. */
+function matchTone(percent) {
+  if (percent >= 65) return 'text-emerald-700';
+  if (percent >= 35) return 'text-amber-700';
+  return 'text-slate-500';
+}
+
 /**
- * One point, one box: the original above, the rewrite below, and a regenerate
- * button scoped to this point alone.
+ * JD match, before and after.
+ *
+ * Deliberately not labelled an ATS score (PRD §9): it measures term overlap
+ * with the requirement this line best answers, which is a real, checkable
+ * thing — and the "working" panel names that requirement.
+ */
+function MatchBar({ before, after }) {
+  if (!before && !after) return null;
+  const now = after ?? before;
+  const moved = before && after && after.percent !== before.percent;
+
+  return (
+    <div className="flex items-baseline gap-2 text-[11px]">
+      <span className="uppercase tracking-wide text-slate-400">JD match</span>
+      {moved && (
+        <>
+          <span className="tabular-nums text-slate-400 line-through">{before.percent}%</span>
+          <span className="text-slate-300">→</span>
+        </>
+      )}
+      <span className={`font-semibold tabular-nums ${matchTone(now.percent)}`}>{now.percent}%</span>
+    </div>
+  );
+}
+
+/**
+ * One point, one box: the original above, the JD-tailored line below, what it
+ * matches in the posting, and a rephrase button scoped to this point alone.
  */
 export default function PointCard({ point, index, busy, onRegenerate, onEdit }) {
   const [editing, setEditing] = useState(false);
@@ -33,7 +66,10 @@ export default function PointCard({ point, index, busy, onRegenerate, onEdit }) 
   return (
     <div className="card overflow-hidden">
       <div className="flex items-center justify-between border-b border-slate-100 bg-slate-50/60 px-4 py-2">
-        <span className="text-xs font-medium text-slate-500">Point {index + 1}</span>
+        <div className="flex items-baseline gap-3">
+          <span className="text-xs font-medium text-slate-500">Point {index + 1}</span>
+          <MatchBar before={point.originalMatch} after={point.match} />
+        </div>
         <span className={`rounded px-2 py-0.5 text-[11px] font-medium ${badge.cls}`}>
           {badge.text}
           {point.attempts > 1 && point.state === POINT.IMPROVED && ` · ${point.attempts} attempts`}
@@ -57,9 +93,19 @@ export default function PointCard({ point, index, busy, onRegenerate, onEdit }) 
         {hasRewrite && !working && (
           <div>
             <div className="flex items-baseline justify-between">
-              <p className="text-[11px] font-medium uppercase tracking-wide text-emerald-700">Rewritten</p>
+              <p className="text-[11px] font-medium uppercase tracking-wide text-emerald-700">
+                {point.match ? 'Final line — tailored to the JD' : 'Final line'}
+              </p>
               {point.score != null && (
-                <span className="text-[11px] tabular-nums text-slate-400">{point.score}%</span>
+                // Named, because it sits beside the JD match and the two
+                // measure different things: this one is writing quality
+                // (STAR, specificity, format), not fit to the posting.
+                <span className="text-[11px] tabular-nums text-slate-400">
+                  {/* The score carries one decimal so the 70% threshold
+                      compares exactly; a decimal point in the UI just looks
+                      like false precision. */}
+                  quality {Math.round(point.score)}%
+                </span>
               )}
             </div>
 
@@ -93,17 +139,17 @@ export default function PointCard({ point, index, busy, onRegenerate, onEdit }) 
         {!working && point.state !== POINT.PENDING && (
           <div className="flex flex-wrap items-center gap-1.5 pt-1">
             <button className="btn-ghost" onClick={() => onRegenerate()} disabled={busy}>
-              ↻ Regenerate
+              ↻ Rephrase
             </button>
             <button className="btn-ghost" onClick={() => setAsking(!asking)} disabled={busy}>
-              Regenerate with a note
+              Rephrase with a note
             </button>
             {hasRewrite && (
               <button className="btn-ghost" onClick={() => { setDraft(point.rewrite); setEditing(true); }} disabled={busy}>
                 Edit
               </button>
             )}
-            {(point.score != null || point.claimsUsed?.length > 0) && (
+            {(point.score != null || point.match || point.claimsUsed?.length > 0) && (
               <button
                 className="btn-ghost ml-auto text-slate-400"
                 onClick={() => setShowWorking(!showWorking)}
@@ -151,6 +197,21 @@ export default function PointCard({ point, index, busy, onRegenerate, onEdit }) 
                 competency {point.scores.competency} · STAR {point.scores.star} · specificity{' '}
                 {point.scores.specificity} · format {point.scores.format}
               </p>
+            )}
+            {point.match?.best && (
+              <div>
+                {/* The derivation, in full. A percentage nobody can check is
+                    worse than no percentage. */}
+                <p className="text-slate-400">
+                  JD match {point.match.percent}% — closest thing the posting asks for:
+                </p>
+                <p className="ml-3">“{point.match.best.text}”</p>
+                <p className="ml-3 text-slate-400">
+                  words in common: {point.match.best.hits.join(', ') || 'none'}
+                  {point.match.keywordHits.length > 0 &&
+                    ` · posting’s own terms used: ${point.match.keywordHits.join(', ')}`}
+                </p>
+              </div>
             )}
             {point.claimsUsed?.length > 0 && (
               <div>

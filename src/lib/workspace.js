@@ -12,6 +12,7 @@
 import * as api from './api.js';
 import { optimizeBullet, OUTCOME } from '../../shared/optimizeLoop.js';
 import { REASON } from '../../shared/scoring.js';
+import { indexJd, matchBullet, coverJd } from '../../shared/jdMatch.js';
 
 export const POINT = {
   PENDING: 'pending',
@@ -73,6 +74,20 @@ export async function analyzeDocuments(
   };
 }
 
+/**
+ * Attach the JD match to a point: the original's score and the rewrite's, so
+ * the box shows movement rather than a bare number. Computed in code — see
+ * shared/jdMatch.js — so it costs no call and is identical on every render.
+ */
+function withMatch(point, jdIndex) {
+  if (!jdIndex) return { ...point, match: null, originalMatch: null };
+  return {
+    ...point,
+    originalMatch: matchBullet(point.text, jdIndex),
+    match: point.rewrite ? matchBullet(point.rewrite, jdIndex) : null,
+  };
+}
+
 /** Everything already claimed elsewhere, so a rewrite can't quietly reuse it. */
 function siblingClaims(analysis, excludeText) {
   return [
@@ -89,6 +104,7 @@ function siblingClaims(analysis, excludeText) {
 export async function rewritePoint(session, { point, targetCompetency, avoid = [], instruction }) {
   const analysis = session.analysis;
   const gapIds = analysis?.coverage?.gapIds ?? [];
+  const jdIndex = indexJd(session.jd?.jd);
 
   // A user instruction is a different job from a blind retry: apply exactly
   // what they asked, and refuse if it can't be done without inventing a fact.
@@ -102,24 +118,30 @@ export async function rewritePoint(session, { point, targetCompetency, avoid = [
     });
 
     if (res.refused) {
-      return {
-        ...point,
-        state: POINT.REFUSED,
-        note: `Declined: ${res.refused}`,
-        usage: { calls: 1, inputTokens: 0, outputTokens: 0 },
-      };
+      return withMatch(
+        {
+          ...point,
+          state: POINT.REFUSED,
+          note: `Declined: ${res.refused}`,
+          usage: { calls: 1, inputTokens: 0, outputTokens: 0 },
+        },
+        jdIndex
+      );
     }
 
-    return {
-      ...point,
-      state: POINT.IMPROVED,
-      note: null,
-      rewrite: res.text,
-      claimsUsed: res.claimsUsed,
-      attempts: (point.attempts ?? 1) + 1,
-      history: [...(point.history ?? []), res.text],
-      usage: { calls: 1, inputTokens: 0, outputTokens: 0 },
-    };
+    return withMatch(
+      {
+        ...point,
+        state: POINT.IMPROVED,
+        note: null,
+        rewrite: res.text,
+        claimsUsed: res.claimsUsed,
+        attempts: (point.attempts ?? 1) + 1,
+        history: [...(point.history ?? []), res.text],
+        usage: { calls: 1, inputTokens: 0, outputTokens: 0 },
+      },
+      jdIndex
+    );
   }
 
   const res = await optimizeBullet(
@@ -149,7 +171,7 @@ export async function rewritePoint(session, { point, targetCompetency, avoid = [
 
   const { state, note } = explain(res);
 
-  return {
+  return withMatch({
     ...point,
     state,
     note,
@@ -160,7 +182,7 @@ export async function rewritePoint(session, { point, targetCompetency, avoid = [
     attempts: res.attempts.length,
     history: [...(point.history ?? []), ...(res.best ? [res.best.rewrite] : [])],
     usage: res.usage,
-  };
+  }, jdIndex);
 }
 
 /** Best guess at what a point should demonstrate, from the earlier analysis. */
@@ -170,12 +192,30 @@ function inferCompetency(analysis, point) {
 }
 
 /**
+ * How much of the target posting this section now speaks to.
+ *
+ * Section-level rather than per-point, because "answers requirement 4" is a
+ * property of the section as a whole — no single bullet should be expected to
+ * cover a job description on its own.
+ */
+export function sectionCoverage(session, points = []) {
+  const jdIndex = indexJd(session.jd?.jd);
+  return coverJd(
+    points.map((p) => p.rewrite ?? p.text),
+    jdIndex
+  );
+}
+
+/**
  * Rewrite every point in a section, reporting each as it lands so the user
  * watches progress rather than waiting on the whole section.
  */
 export async function rewriteSection(session, section, { onPoint = () => {} } = {}) {
   const usage = { calls: 0, inputTokens: 0, outputTokens: 0 };
-  const points = section.points.map((p) => ({ ...p, state: POINT.PENDING }));
+  const jdIndex = indexJd(session.jd?.jd);
+  // Seed each box with the original's JD match before any rewriting, so the
+  // user sees the starting position rather than a number appearing from nowhere.
+  const points = section.points.map((p) => withMatch({ ...p, state: POINT.PENDING }, jdIndex));
   onPoint([...points]);
 
   for (let i = 0; i < points.length; i++) {

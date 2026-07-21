@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import * as api from '../lib/api.js';
+import { parseFile, ACCEPTED } from '../lib/parse.js';
 
 const ORIGIN_LABEL = {
   pasted: { text: 'you pasted this', cls: 'bg-emerald-50 text-emerald-800' },
@@ -28,6 +29,23 @@ export default function JdPanel({ jd, onChange }) {
   const [pasting, setPasting] = useState(false);
   const [pasteText, setPasteText] = useState('');
   const [open, setOpen] = useState(false);
+  const [reading, setReading] = useState(false);
+
+  /** A posting saved as PDF or DOCX is as common as one that can be copied. */
+  async function handleFile(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setReading(true);
+    setError('');
+    try {
+      setPasteText(await parseFile(file));
+    } catch (err) {
+      setError(`Couldn’t read that file: ${err.message}`);
+    } finally {
+      setReading(false);
+      e.target.value = '';
+    }
+  }
 
   async function search() {
     if (!company.trim() && !role.trim()) return setError('Enter a company, a role, or both.');
@@ -100,7 +118,9 @@ export default function JdPanel({ jd, onChange }) {
           disabled={busy}
         />
         <button className="btn-primary shrink-0 px-4 py-2 text-xs" onClick={search} disabled={busy}>
-          {busy ? 'Searching…' : 'Find JD'}
+          {/* Only claim to be searching when a search is what's running — the
+              same busy flag also covers reading a pasted posting. */}
+          {busy && !pasting ? 'Searching…' : 'Find JD'}
         </button>
       </div>
 
@@ -113,6 +133,18 @@ export default function JdPanel({ jd, onChange }) {
 
       {pasting && (
         <div className="mt-2 space-y-2">
+          <div className="flex justify-end">
+            <label className="cursor-pointer text-xs font-medium text-slate-600 underline hover:text-slate-900">
+              {reading ? 'reading…' : 'upload the posting as a file'}
+              <input
+                type="file"
+                accept={ACCEPTED}
+                className="hidden"
+                disabled={reading}
+                onChange={handleFile}
+              />
+            </label>
+          </div>
           <textarea
             className="field h-32 resize-y font-mono text-xs"
             placeholder="Paste the full job posting here…"

@@ -2,11 +2,41 @@ import { useState } from 'react';
 import SectionPicker from './SectionPicker.jsx';
 import PointCard from './PointCard.jsx';
 import JdPanel from './JdPanel.jsx';
-import { rewriteSection, rewritePoint, POINT } from '../lib/workspace.js';
+import { rewriteSection, rewritePoint, sectionCoverage, POINT } from '../lib/workspace.js';
 import { SENIORITY } from '../../shared/competencyModel.js';
+
+/**
+ * Which document's sections are showing. The two are kept apart because they
+ * are different jobs: resume points get reworked in place, notes are raw
+ * material being brought onto the resume for the first time.
+ */
+function SourceTabs({ analysis, source, onChange }) {
+  const count = (src) => (analysis?.sections ?? []).filter((s) => s.source === src).length;
+
+  const Tab = ({ id, label }) => (
+    <button
+      onClick={() => onChange(id)}
+      className={`-mb-px border-b-2 px-3 py-2 text-sm transition ${
+        source === id
+          ? 'border-slate-900 font-medium text-slate-900'
+          : 'border-transparent text-slate-500 hover:text-slate-800'
+      }`}
+    >
+      {label} <span className="text-xs text-slate-400">{count(id)}</span>
+    </button>
+  );
+
+  return (
+    <div className="flex gap-1 border-b border-slate-200">
+      <Tab id="resume" label="Resume" />
+      <Tab id="experience" label="Experience notes" />
+    </div>
+  );
+}
 
 export default function Workspace({ session, onSession, onReset }) {
   const [active, setActive] = useState(null); // { section, points }
+  const [source, setSource] = useState('resume');
   const [busy, setBusy] = useState(false);
   const [busyPoint, setBusyPoint] = useState(null);
   const [error, setError] = useState('');
@@ -89,6 +119,7 @@ export default function Workspace({ session, onSession, onReset }) {
 
   const improved = active?.points.filter((p) => p.state === POINT.IMPROVED).length ?? 0;
   const done = active?.points.every((p) => p.state !== POINT.PENDING && p.state !== POINT.WORKING);
+  const coverage = active && done ? sectionCoverage(session, active.points) : null;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6 px-6 py-10">
@@ -103,6 +134,18 @@ export default function Workspace({ session, onSession, onReset }) {
         </div>
         <button className="btn-ghost" onClick={onReset}>Change documents</button>
       </div>
+
+      {/* Document switcher, always at the top — switching while a section is
+          open returns to that document's list rather than stranding the user. */}
+      <SourceTabs
+        analysis={analysis}
+        source={source}
+        onChange={(next) => {
+          setSource(next);
+          setActive(null);
+          setError('');
+        }}
+      />
 
       {error && (
         <p className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p>
@@ -124,6 +167,7 @@ export default function Workspace({ session, onSession, onReset }) {
         <SectionPicker
           analysis={analysis}
           worked={worked}
+          source={source}
           onPick={openSection}
           onPickCustom={(text) => {
             // Match against what was found; otherwise tell the user plainly.
@@ -150,6 +194,18 @@ export default function Workspace({ session, onSession, onReset }) {
               {improved} of {active.points.length} improved
             </span>
           </div>
+
+          {/* Rolled up from the same computation as each box, so the section
+              number and the point numbers can never disagree. */}
+          {coverage && (
+            <p className="rounded-md bg-slate-50 px-4 py-2.5 text-xs text-slate-600">
+              This section now speaks to <strong>{coverage.answered} of {coverage.total}</strong> things
+              the posting asks for.
+              {coverage.unanswered.length > 0 && (
+                <> Still unanswered here: “{coverage.unanswered[0]}”.</>
+              )}
+            </p>
+          )}
 
           <div className="space-y-3">
             {active.points.map((p, i) => (

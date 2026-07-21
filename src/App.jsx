@@ -13,7 +13,7 @@ export default function App() {
   // Persist on every change, so a refresh mid-session loses nothing.
   useEffect(() => saveSession(session), [session]);
 
-  async function handleReady({ resumeText, experienceText, seniority }) {
+  async function handleReady({ resumeText, experienceText, seniority, jd }) {
     setBusy(true);
     setError(null);
     try {
@@ -21,7 +21,7 @@ export default function App() {
         { resumeText, experienceText, seniority },
         { onStage: setStage }
       );
-      setSession((s) => ({ ...s, resumeText, experienceText, seniority, analysis, results: {} }));
+      setSession((s) => ({ ...s, resumeText, experienceText, seniority, jd, analysis, results: {} }));
     } catch (e) {
       setError(e);
     } finally {

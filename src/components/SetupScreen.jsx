@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { parseFile, ACCEPTED } from '../lib/parse.js';
 import { SENIORITY } from '../../shared/competencyModel.js';
+import JdPanel from './JdPanel.jsx';
 
 function DocInput({ label, hint, value, onChange, required }) {
   const [error, setError] = useState('');
@@ -53,6 +54,7 @@ export default function SetupScreen({ initial, onReady, busy, stage }) {
   const [resumeText, setResumeText] = useState(initial?.resumeText ?? '');
   const [experienceText, setExperienceText] = useState(initial?.experienceText ?? '');
   const [seniority, setSeniority] = useState(initial?.seniority ?? 'PM');
+  const [jd, setJd] = useState(initial?.jd ?? null);
   const [problem, setProblem] = useState('');
 
   function handleClick() {
@@ -61,7 +63,7 @@ export default function SetupScreen({ initial, onReady, busy, stage }) {
     if (resume.length < 50)
       return setProblem(`That’s only ${resume.length} characters. Paste your full resume, or at least a few bullet points.`);
     setProblem('');
-    onReady({ resumeText, experienceText, seniority });
+    onReady({ resumeText, experienceText, seniority, jd });
   }
 
   return (
@@ -98,7 +100,17 @@ export default function SetupScreen({ initial, onReady, busy, stage }) {
               <option key={id} value={id}>{s.label}</option>
             ))}
           </select>
+          <p className="text-xs text-slate-500">
+            Sets which competencies count as gaps. The job description below, if you add one, sets
+            the emphasis and vocabulary.
+          </p>
         </div>
+      </div>
+
+      {/* The target posting. Optional — without one, points are still rewritten
+          against the competency model, just not tuned to a specific role. */}
+      <div className="mt-4">
+        <JdPanel jd={jd} onChange={setJd} />
       </div>
 
       {problem && (

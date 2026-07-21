@@ -1,8 +1,28 @@
-# Resume Bullet Optimizer Agent — PRD v1.1
+# Resume Bullet Optimizer Agent — PRD v1.4
 
-**Owner:** Raju · **Date:** July 2026 · **Status:** Steps 1–8 built and running; UI in place
+**Owner:** Raju · **Date:** July 2026 · **Status:** Workspace flow shipping end to end; eval labels outstanding
 **Supersedes:** `Resume_Bullet_Optimizer_Agent_Plan.docx` (architecture doc — carried forward where noted)
 **Repo:** https://github.com/rajuk-raj/AI-Agent-Project
+
+## Changelog — v1.3 → v1.4 (JD-first workspace)
+
+The four inputs are now supplied together and up front: **resume, experience notes, job description, target level.** The JD moved from a panel inside the workspace to the setup screen, because it changes what every rewrite optimises for — collecting it after the analysis meant the first section was written against no target.
+
+**Sections are chosen per document.** A Resume / Experience notes switcher sits at the top of the workspace. The two are different jobs — resume points get reworked in place, notes are raw material coming onto the resume for the first time — and mixing them in one list obscured that.
+
+**Each point box now carries a JD match percentage**, before and after. New module `shared/jdMatch.js`.
+
+**It is not called an ATS score**, which is what was originally asked for. Per §9, the label has to say what the number measures: term overlap between the bullet and the single JD requirement it best answers. Every percentage in the UI names that requirement and lists the words that matched, so any number can be checked by hand. Calling it an ATS score would claim knowledge of a scoring system no applicant tracking system actually implements.
+
+It is computed **in code, not by the model** — the same reasoning as the format criterion in §7.3. It costs no call, so every point can show a before *and* after; it is deterministic, so the same bullet never scores differently twice; and it is inspectable. The denominator is floored at 3 terms and capped at 6, so a one-word requirement can't award 100% on an incidental match and a rambling one isn't unmatchable by a 150-character bullet.
+
+**The JD still never reaches the fabrication check.** Match scoring reads the JD to rank wording; nothing in that path can put a posting's claim into a candidate's bullet. The §1.3 split holds.
+
+**STAR remains best-effort, not forced.** A point whose source material contains no outcome gets the strongest STAR-shaped version the documents support and a "needs a result from you" note. Emitting a complete STAR sentence for every point would mean inventing Results, which is the failure the product exists to refuse.
+
+**Removed:** the retired autonomous run's leftovers — `src/lib/orchestrator.js`, `InputScreen.jsx`, `OutputScreen.jsx`, `ProgressLog.jsx`, and the unused `generate` prompts in `api/_prompts.js`. Nothing imported them after v1.2. The `api/generate.js` route named in the v1.2 changelog was itself superseded by point-by-point rewriting and no longer exists.
+
+**Known limitation:** section-level coverage counts requirements a bullet cannot answer — "5+ years in product management" is a biography fact, not an achievement — so the "speaks to N of M" denominator reads low. Honest but pessimistic; splitting requirements into demonstrable and biographical is a v1.5 item.
 
 ## Changelog — v1.2 → v1.3 (JD path)
 
@@ -360,39 +380,62 @@ Identical output quality, 4.5× slower, ~9× the output tokens — and reasoning
 | 6 | Duplication guard (`DUPLICATES_EXISTING`) | **Done** — added after live testing |
 | 7 | Clarification pass (questions + answer folding) | **Done** |
 | 8 | Golden set + eval harness | **Built — awaiting 30 hand labels** |
-| 9 | UI: input, live progress log, output screen | **Done** |
-| 10 | Client-side file parsing (PDF / DOCX / TXT) | **Done** — untested against a real PDF |
+| 9 | UI: setup, section workspace, per-point boxes | **Done** — v1.4 shape |
+| 10 | Client-side file parsing (PDF / DOCX / TXT) | **Done** — resume, notes, and JD all accept files |
 | 11 | Threshold calibration against golden set | Blocked on #8 |
-| 12 | Gap-aware rewrite targeting | Open — see changelog |
-| 13 | Regenerate-with-prompt (per-bullet) | Not started |
+| 12 | Gap-aware rewrite targeting | **Done** — the rewriter is told when its target closes a gap |
+| 13 | Rephrase, with or without an instruction (per-point) | **Done** — `api/refine.js`, refusal included |
 | 14 | Fabrication audit (50 bullets) | Not started |
 | 15 | Vercel deploy | Not started |
+| 16 | JD match per point (`shared/jdMatch.js`) | **Done** — 10 tests |
+
+**Phase 8 is the critical path.** The golden set's 30 bullets are written and the harness runs, but `eval/labels.csv` has no human labels in it, so nothing currently validates the self-scorer — the claim §8 exists to support is unsupported until Raju fills that in. Labelling it with a model would measure the scorer against itself and prove nothing.
 
 **~15 days** (10–12 compressed with Claude Code). Phase 8 is deliberately placed before the output UI — calibrating the threshold before building the UI that displays scores avoids rebuilding the display around a number that turns out to be wrong.
 
 ## 12. UI
 
-**Screen 1 — Input.** Resume (required), experience doc (optional, with a hint explaining what it is and why it helps), seniority dropdown. CTA: *Optimize My Resume*.
+Two screens. The autonomous run's three-screen flow (input → progress log → output) was retired in v1.2 and the log with it; self-correction now happens inside each point and surfaces as a verdict on that point's box.
 
-**Screen 2 — Agent working.** Full-screen styled log, real-time. Step progress ("Step 4 of 7 — Rewriting bullets"). Estimate: ~60s. No intervention possible. The log shows reasoning, not just status:
+**Screen 1 — Setup.** All four inputs, together, before any work starts:
+
+| Input | Required | Accepts |
+|---|---|---|
+| Resume | yes | paste, or PDF / DOCX / TXT |
+| Experience notes | no, but strongly recommended | paste, or PDF / DOCX / TXT |
+| Target level | yes (defaults to PM) | dropdown — sets which competencies count as gaps |
+| Job description | no | paste, upload, or company + role via search |
+
+The JD is collected here rather than later because it changes what every rewrite optimises for. Provenance is shown the moment one resolves (§1.3): pasted / fetched / assembled from snippets.
+
+One analysis pass (~20s) then finds the sections in both documents.
+
+**Screen 2 — Workspace.** A **Resume / Experience notes** switcher at the top picks which document's sections are listed. Choosing a section rewrites every point under it, one at a time, each landing as it finishes.
+
+**One point, one box:**
 
 ```
-Parsing resume... 14 bullets found across 3 roles.
-Mapping to PM competency model...
-  Execution & delivery: 6 bullets (strong)
-  Metrics & data: 1 bullet (weak)
-  Discovery & research: 0 bullets  ← gap
-Rewriting bullet 1 of 6...
-  Scored 82% — accepted.
-Rewriting bullet 2 of 6...
-  Scored 54% — reason: WEAK_PHRASING. Retrying with a different angle...
-  Retry scored 76% — accepted.
-Rewriting bullet 3 of 6...
-  Scored 61% — reason: NO_QUANTIFIABLE_DATA. Skipping retries, queued for clarification.
-Complete. Coverage 3/7 → 5/7. 4 optimized, 8 kept, 1 flagged, 2 questions queued.
+Point 1     JD MATCH 58% → 79%                       improved
+──────────────────────────────────────────────────────────────
+YOUR ORIGINAL
+KYC rework took two quarters, ran 18 merchant interviews
+first, drop-off went 41% to 23%.
+
+FINAL LINE — TAILORED TO THE JD              quality 76%
+Conducted 18 merchant interviews during a two-quarter KYC
+rework, improving onboarding drop-off from 41% to 23%.
+
+[↻ Rephrase]  [Rephrase with a note]  [Edit]        [working]
 ```
 
-**Screen 3 — Output.** Coverage before/after (visual, per-competency). Bullet cards: original (grey) vs optimized (highlighted), score breakdown, competency tag, why-note, actions. Flagged section. Gap summary. Clarification prompt if questions are queued. Export.
+Two percentages, deliberately named apart: **JD match** is fit to the posting (§1.4), **quality** is the §7.3 composite — STAR, competency, specificity, format. An unlabelled number beside another unlabelled number is a guessing game.
+
+*Rephrase* runs the loop again with every version already shown ruled out, so it changes angle rather than resampling. *Rephrase with a note* takes an instruction and may refuse it — asked to claim a number the documents don't support, it declines and names what's missing.
+
+*working* expands the derivation: the criterion scores, the JD requirement matched and the words that hit it, the facts drawn from the candidate's documents, and any earlier versions rephrased past. Every number on the screen can be traced from there.
+
+**Not built:** export beyond copy-to-clipboard, and the clarification pass. Questions still generate (`api/questions.js`) and are covered by tests, but no screen asks them — the workspace tells the user what's missing on the point itself and lets them add it to their notes. Wiring the question flow back in is a v1.5 item.
+
 
 ## 13. Risks & open questions
 
