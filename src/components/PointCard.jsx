@@ -74,7 +74,7 @@ function MatchBar({ before, after, listMatch }) {
  * One point, one box: the original above, the JD-tailored line below, what it
  * matches in the posting, and a rephrase button scoped to this point alone.
  */
-export default function PointCard({ point, index, busy, onRegenerate, onEdit }) {
+export default function PointCard({ point, index, busy, onRegenerate, onEdit, onUseSuggestion }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(point.rewrite ?? '');
   const [showWorking, setShowWorking] = useState(false);
@@ -84,6 +84,9 @@ export default function PointCard({ point, index, busy, onRegenerate, onEdit }) 
   const badge = BADGE[point.state] ?? BADGE[POINT.PENDING];
   const hasRewrite = Boolean(point.rewrite);
   const working = point.state === POINT.WORKING;
+  // A draft rejected for inventing a fact is shown but never made easy to
+  // accept — the whole product rests on not handing over a fabricated claim.
+  const unsafeDraft = point.fabricatedClaims?.length > 0;
 
   function save() {
     onEdit(draft.trim());
@@ -181,6 +184,43 @@ export default function PointCard({ point, index, busy, onRegenerate, onEdit }) 
           <p className="rounded bg-slate-50 px-3 py-2 text-xs text-slate-700">{point.note}</p>
         )}
 
+        {/* The best draft, shown rather than buried, when the agent declined to
+            apply it. Hiding it left a weak-fit point with no way forward. It is
+            labelled as not applied, the reason sits directly above, and taking
+            it is the user's call — except where the draft invents a fact, which
+            is offered to nobody. */}
+        {point.rejectedDraft && !working && (
+          <div className="rounded border border-dashed border-slate-300 p-3">
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">
+                Suggested — not applied
+              </p>
+              {point.suggestionMatch && (
+                <span className={`text-[11px] tabular-nums ${matchTone(point.suggestionMatch.percent)}`}>
+                  would be {point.suggestionMatch.percent}% ·{' '}
+                  {matchBand(point.suggestionMatch.percent).label}
+                </span>
+              )}
+            </div>
+            <p className="mt-1 text-sm text-slate-700">{point.rejectedDraft}</p>
+
+            {unsafeDraft ? (
+              <p className="mt-2 text-[11px] text-red-800">
+                Not offered as a one-click change: it claims “{point.fabricatedClaims[0]}”, which
+                isn’t in your documents. Use it only if you can back that up.
+              </p>
+            ) : (
+              <button
+                className="btn-ghost mt-2"
+                onClick={() => onUseSuggestion(point.rejectedDraft)}
+                disabled={busy}
+              >
+                Use this line
+              </button>
+            )}
+          </div>
+        )}
+
         {!working && point.state !== POINT.PENDING && (
           <div className="flex flex-wrap items-center gap-1.5 pt-1">
             <button className="btn-ghost" onClick={() => onRegenerate()} disabled={busy}>
@@ -198,6 +238,7 @@ export default function PointCard({ point, index, busy, onRegenerate, onEdit }) 
               point.match ||
               point.listMatch ||
               point.rejectedDraft ||
+              point.overriddenNote ||
               point.claimsUsed?.length > 0) && (
               <button
                 className="btn-ghost ml-auto text-slate-400"
@@ -285,6 +326,12 @@ export default function PointCard({ point, index, busy, onRegenerate, onEdit }) 
                 <ul className="ml-3 list-disc">
                   {point.claimsUsed.map((c, i) => <li key={i}>“{c}”</li>)}
                 </ul>
+              </div>
+            )}
+            {point.overriddenNote && (
+              <div>
+                <p className="text-slate-400">you chose this line; the agent had declined it:</p>
+                <p className="ml-3">{point.overriddenNote}</p>
               </div>
             )}
             {point.rejectedDraft && (

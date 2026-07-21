@@ -201,9 +201,14 @@ function finish(outcome, attempts, usage, lastScore) {
     best,
     attempts,
     usage,
-    reason: lastScore?.reason ?? best?.reason ?? REASON.WEAK_PHRASING,
+    // Both describe the attempt actually being surfaced, not whichever one
+    // happened to run last. Reporting the final attempt's objection against
+    // the best attempt's text put a fabrication warning on a clean draft —
+    // and, since the warning suppresses the one-click accept, blocked a
+    // perfectly usable line over a claim it did not contain.
+    reason: best?.reason ?? lastScore?.reason ?? REASON.WEAK_PHRASING,
     // Only accepted rewrites are safe to present as improvements.
     accepted: outcome === OUTCOME.ACCEPTED,
-    fabricatedClaims: lastScore?.fabricatedClaims ?? [],
+    fabricatedClaims: best?.fabricatedClaims ?? [],
   };
 }

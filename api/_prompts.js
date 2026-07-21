@@ -631,11 +631,35 @@ The same hard constraints apply: never invent a fact, single line, max 150 chara
 
 If the instruction cannot be followed without asserting something the sources do not contain - "make it sound more impressive", "add a metric", "say it saved time" - do NOT comply. Return the best honest version you can and explain the problem in "refused". The user is better served by being told the fact is missing than by being handed an invented one they might not notice.`;
 
-export function refinePrompt({ bullet, instruction, resumeText, experienceText, otherBullets = [] }) {
+export function refinePrompt({
+  bullet,
+  instruction,
+  resumeText,
+  experienceText,
+  otherBullets = [],
+  jd = null,
+}) {
   const parts = [
     `<current_bullet>\n${bullet}\n</current_bullet>`,
     `<instruction>\n${instruction}\n</instruction>`,
   ];
+
+  if (jd) {
+    // Same split as the rewriter: the posting shapes wording, never content.
+    // A user instruction does not relax that — "make it match the job better"
+    // is precisely the request most likely to invite a borrowed claim.
+    const bits = [
+      jd.title && `Role: ${jd.title}${jd.company ? ` at ${jd.company}` : ''}`,
+      jd.requirements?.length && `Asks for: ${jd.requirements.slice(0, 8).join('; ')}`,
+      jd.keywords?.length && `Their vocabulary: ${jd.keywords.slice(0, 15).join(', ')}`,
+    ].filter(Boolean);
+
+    parts.push(
+      `<target_job_description>\n${bits.join('\n')}\n</target_job_description>`,
+      `Where the candidate's own material supports it, prefer this posting's vocabulary. ` +
+        `The posting is NOT evidence about the candidate: nothing in it may become a claim.`
+    );
+  }
 
   if (otherBullets.length) {
     parts.push(

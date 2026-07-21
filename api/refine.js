@@ -18,6 +18,8 @@ export async function refine({
   resumeText,
   experienceText = '',
   otherBullets = [],
+  // Lens only, exactly as in the rewriter: never evidence about the candidate.
+  jd = null,
 }) {
   if (!bullet?.trim()) throw new Error('bullet is required.');
   if (!instruction?.trim()) throw new Error('instruction is required.');
@@ -26,7 +28,7 @@ export async function refine({
   const { data, usage, model } = await callLLM({
     tool: 'rewrite',
     system: REFINE_SYSTEM,
-    prompt: refinePrompt({ bullet, instruction, resumeText, experienceText, otherBullets }),
+    prompt: refinePrompt({ bullet, instruction, resumeText, experienceText, otherBullets, jd }),
     schema: REFINE_SCHEMA,
     schemaName: 'refined_bullet',
     maxOutputTokens: 1500,

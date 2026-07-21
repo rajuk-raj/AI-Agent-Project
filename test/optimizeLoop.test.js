@@ -341,3 +341,50 @@ test('the chase stops as soon as it stops paying off', async () => {
   assert.equal(calls.length, 2, 'one chase attempt, then stop — not four');
   assert.equal(res.best.jdMatch.percent, 25, 'keeps the closest version');
 });
+
+test('the reported objection belongs to the draft being surfaced', async () => {
+  let n = 0;
+  const rewriteFn = async (args) => ({
+    rewrite: `rewrite-attempt-${args.attempt}`,
+    claimsUsed: [],
+    rationale: 'stub',
+    star: { situationTask: 's', action: 'a', result: 'r' },
+    meta,
+  });
+
+  const res = await optimizeBullet(BASE, {
+    rewriteFn,
+    // Attempt 1 is merely weak; attempt 2 invents something. The best attempt
+    // by score is the clean one, so its objection is the one to report.
+    scoreFn: async () => {
+      const s =
+        n++ === 0
+          ? { composite: 65, reason: REASON.WEAK_PHRASING, route: ROUTE.RETRY, fabricatedClaims: [] }
+          : {
+              composite: 20,
+              reason: REASON.WOULD_REQUIRE_FABRICATION,
+              route: ROUTE.FLAG,
+              fabricatedClaims: ['enhancing efficiency significantly'],
+            };
+      return {
+        composite: s.composite,
+        reason: s.reason,
+        route: s.route,
+        scores: { competency: 0, star: 0, specificity: 0, format: 0 },
+        format: { issues: [] },
+        fabricationRisk: s.reason === REASON.WOULD_REQUIRE_FABRICATION,
+        fabricatedClaims: s.fabricatedClaims,
+        sourceHasMetric: true,
+        rationale: 'stub',
+        meta,
+      };
+    },
+  });
+
+  assert.equal(res.best.composite, 65, 'the clean attempt is the best one');
+  assert.deepEqual(
+    res.fabricatedClaims,
+    [],
+    'a clean draft must not carry another attempt’s fabrication warning'
+  );
+});

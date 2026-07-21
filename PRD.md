@@ -4,6 +4,22 @@
 **Supersedes:** `Resume_Bullet_Optimizer_Agent_Plan.docx` (architecture doc — carried forward where noted)
 **Repo:** https://github.com/rajuk-raj/AI-Agent-Project
 
+## Changelog — v1.7 → v1.8 (the suggestion is shown, and the duplicate bug is fixed)
+
+**Root cause of the false duplicates.** `decompose` returns bullets with the leading `"- "`; the section extractor strips it. `siblingClaims` excluded the point's own text by exact match, so `"Built dashboards…"` never matched `"- Built dashboards…"` — and **every bullet was handed to the scorer as another point's achievement**. Any rewrite reusing the bullet's own metric then read as borrowed, which is why bullets carrying their own numbers came back "borrowed a result that already belongs to another point". Compared loosely now.
+
+**A declined draft is shown, not buried.** A weak-fit point previously offered no way forward: the best draft sat in the working panel and the card said only what it wouldn't do. It now appears as *Suggested — not applied*, with the match it would produce, the reason it wasn't applied above it, and a **Use this line** button.
+
+**Except where the draft invents a fact.** Then it is still shown — hiding it would be worse — but with no one-click accept and the invented claim named. Handing over a fabricated line in one click is the one thing this product exists not to do.
+
+**Objections now describe the draft being surfaced.** `finish()` reported the *last* attempt's fabrication against the *best* attempt's text, so a clean, fully-supported draft carried a warning about a phrase it did not contain — and, since the warning suppresses the accept button, a usable line was blocked over another attempt's mistake.
+
+**Edits and accepted suggestions are rescored.** The percentage beside a line now always describes that line. Taking a suggestion moves the card to *improved* and shows the movement (47% → 55% · partial fit · +8); the agent's original objection moves into the working panel rather than sitting under a line that was applied, which contradicted itself.
+
+**Rephrase is JD-aware.** `api/refine.js` takes the posting as a lens, on the same terms as the rewriter: it shapes wording, never content.
+
+**A guaranteed "strong fit" after rephrase remains out of reach**, for the reasons measured in v1.5 — the band shows what was actually reached, and the suggestion shows what taking it would reach.
+
 ## Changelog — v1.6 → v1.7 (bands, roster scoring, two guardrail bugs)
 
 **Every match now carries a band beside the percentage** — *strong fit* ≥60, *partial fit* ≥30, *weak fit* below — plus the point gain when a rewrite improves on the original. The percentage alone was being read as a school grade: 42% on a good line looks like failure, when term overlap with verbose requirement sentences simply tops out low.

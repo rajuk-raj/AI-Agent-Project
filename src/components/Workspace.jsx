@@ -2,7 +2,7 @@ import { useState } from 'react';
 import SectionPicker from './SectionPicker.jsx';
 import PointCard from './PointCard.jsx';
 import JdPanel from './JdPanel.jsx';
-import { rewriteSection, rewritePoint, sectionCoverage, POINT } from '../lib/workspace.js';
+import { rewriteSection, rewritePoint, sectionCoverage, applyEdit, POINT } from '../lib/workspace.js';
 import { SENIORITY } from '../../shared/competencyModel.js';
 
 /**
@@ -102,10 +102,12 @@ export default function Workspace({ session, onSession, onReset }) {
     }
   }
 
+  /**
+   * A line the user chose — typed themselves, or a draft the agent declined to
+   * apply. Rescored on the way in so the percentage matches the text shown.
+   */
   function editPoint(point, text) {
-    const points = active.points.map((p) =>
-      p.id === point.id ? { ...p, rewrite: text, edited: true } : p
-    );
+    const points = active.points.map((p) => (p.id === point.id ? applyEdit(session, p, text) : p));
     setActive({ ...active, points });
     onSession({ ...session, results: { ...(session.results ?? {}), [active.section.id]: points } });
   }
@@ -216,6 +218,7 @@ export default function Workspace({ session, onSession, onReset }) {
                 busy={busy || busyPoint === p.id}
                 onRegenerate={(instruction) => regenerate(p, instruction)}
                 onEdit={(text) => editPoint(p, text)}
+                onUseSuggestion={(text) => editPoint(p, text)}
               />
             ))}
           </div>

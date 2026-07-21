@@ -148,16 +148,36 @@ export async function analyzeDocuments(
  * shared/jdMatch.js — so it costs no call and is identical on every render.
  */
 function withMatch(point, jdIndex) {
-  if (!jdIndex) return { ...point, match: null, originalMatch: null };
+  if (!jdIndex) return { ...point, match: null, originalMatch: null, suggestionMatch: null };
   return {
     ...point,
     originalMatch: matchBullet(point.text, jdIndex),
     match: point.rewrite ? matchBullet(point.rewrite, jdIndex) : null,
+    // Scored too, so a suggestion the agent declined to apply still shows what
+    // taking it would do — the user is the one deciding.
+    suggestionMatch: point.rejectedDraft ? matchBullet(point.rejectedDraft, jdIndex) : null,
   };
 }
 
 /** Everything already claimed elsewhere, so a rewrite can't quietly reuse it. */
 function siblingClaims(analysis, excludeText) {
+  // Compared loosely, because the same bullet reaches here in two shapes:
+  // decompose keeps the leading "- ", the section extractor strips it. Exact
+  // equality therefore failed to exclude the point from its own sibling list,
+  // so the scorer was shown the bullet as ANOTHER point's achievement and
+  // refused every rewrite that reused the bullet's own metric. That is what
+  // produced "borrowed a result that already belongs to another point" on
+  // bullets carrying their own numbers.
+  const key = (s) =>
+    s
+      .toLowerCase()
+      .replace(/^[\s\-•*–—]+/, '')
+      .replace(/\s+/g, ' ')
+      .replace(/[.,;:]+$/, '')
+      .trim();
+
+  const self = key(excludeText ?? '');
+
   return [
     ...(analysis?.resumeBullets ?? []).map((b) => b.text),
     // RESUME sections only. Experience notes are source material, not rival
@@ -170,7 +190,37 @@ function siblingClaims(analysis, excludeText) {
     ...(analysis?.sections ?? [])
       .filter((s) => s.source === 'resume')
       .flatMap((s) => s.points.map((p) => p.text)),
-  ].filter((t) => t && t !== excludeText);
+  ].filter((t) => t && key(t) !== self);
+}
+
+/**
+ * Apply a line the user chose — their own edit, or a draft the agent declined
+ * to apply on its own.
+ *
+ * Rescored against the JD here, because the percentage on the card has to
+ * describe the line actually shown. Free and deterministic, so there is no
+ * reason to leave a stale number sitting next to new text.
+ */
+export function applyEdit(session, point, text) {
+  const jdIndex = indexJd(session.jd?.jd);
+  return withMatch(
+    {
+      ...point,
+      state: POINT.IMPROVED,
+      rewrite: text,
+      edited: true,
+      // The suggestion has been taken; it is the final line now.
+      rejectedDraft: null,
+      // "Left alone — every stronger version borrowed a result" sitting under a
+      // line that was applied contradicts itself. The objection isn't deleted,
+      // just moved: it's why the agent didn't do this on its own, and it stays
+      // readable under "working".
+      note: null,
+      overriddenNote: point.note ?? null,
+      history: [...(point.history ?? []), text],
+    },
+    jdIndex
+  );
 }
 
 /**
@@ -199,6 +249,9 @@ export async function rewritePoint(
       resumeText: session.resumeText,
       experienceText: session.experienceText,
       otherBullets: siblingClaims(analysis, point.text),
+      // So a rephrase moves toward the posting's language too, instead of
+      // drifting away from the target the rest of the loop aims at.
+      jd: session.jd?.jd ?? null,
     });
 
     if (res.refused) {
@@ -273,6 +326,10 @@ export async function rewritePoint(
     rewrite: accepted ? res.best?.rewrite ?? null : null,
     rejectedDraft: accepted ? null : res.best?.rewrite ?? null,
     star: accepted ? res.best?.star ?? null : null,
+    // Kept so the card can decide whether the draft is safe to offer. A draft
+    // rejected for inventing a fact must never get a one-click "use this".
+    reason: res.reason ?? null,
+    fabricatedClaims: res.fabricatedClaims ?? [],
     score: res.best?.composite ?? null,
     scores: res.best?.scores ?? null,
     claimsUsed: res.best?.claimsUsed ?? [],
